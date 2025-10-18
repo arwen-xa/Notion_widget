@@ -1,0 +1,94 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+  <meta charset="utf-8"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1"> 
+  <title>Learning Log</title> 
+
+  {% load django_bootstrap5 %} 
+  {% bootstrap_css %} 
+  {% bootstrap_javascript %} 
+
+</head>
+
+<body> 
+  <nav class="navbar navbar-expand-md navbar-light bg-light mb-4 border"> 
+    <div class="container-fluid"> 
+      <a class="navbar-brand" href="{% url 'learning_logs:index' %}"> 
+          Learning Log</a> 
+ 
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" 
+        data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" 
+        aria-expanded="false" aria-label="Toggle navigation"> 
+        <span class="navbar-toggler-icon"></span> 
+      </button> 
+ 
+      <div class="collapse navbar-collapse" id="navbarCollapse"> 
+        <ul class="navbar-nav me-auto mb-2 mb-md-0"> 
+          <li class="nav-item"> 
+            <a class="nav-link" href="{% url 'learning_logs:topics' %}"> 
+              Topics</a></li> 
+        </ul> <!-- 定义导航栏左侧链接的代码到此结束 --> 
+
+        <!-- 与账户相关的链接 --> 
+        <!-- 使用起始标签 <ul> 定义另一组链接 -->
+        <!-- 选择器 ms-auto（margin-start-automatic 的缩写，表示自动左边距）
+         根据导航栏包含的其他元素设置左边距，确保这组链接位于浏览器窗口的右侧。 -->
+        <ul class="navbar-nav ms-auto mb-2 mb-md-0"> 
+
+          {% if user.is_authenticated %} 
+            <li class="nav-item"> 
+              <!-- <span> 元素用于设置区域内一系列文本或元素的样式。
+                <div> 元素创建区域，而 <span>元素不会。 -->
+              <span class="navbar-text me-2">Hello, {{ user.username }}. 
+                  </span></li> 
+          {% else %} 
+            <li class="nav-item"> 
+              <a class="nav-link" href="{% url 'accounts:register' %}"> 
+                  Register</a></li> 
+            <li class="nav-item"> 
+              <a class="nav-link" href="{% url 'accounts:login' %}"> 
+                  Log in</a></li> 
+          {% endif %} 
+
+        </ul> <!-- 与账户相关的链接到此结束 -->
+
+        {% if user.is_authenticated %} 
+          <form action="{% url 'accounts:logout' %}" method='post'> 
+            {% csrf_token %}        
+            <!-- 添加了大量的 Bootstrap 样式设置类，以设置注销按钮的Bootstrap 样式 -->
+            <button name='submit' class='btn btn-outline-secondary btn-sm'> 
+                Log out</button> 
+          </form> 
+        {% endif %} 
+
+      </div> <!-- 定义导航栏可折叠部分的代码到此结束 --> 
+ 
+    </div> <!-- 定义导航栏容器的代码到此结束 --> 
+  </nav> <!-- 定义导航栏的代码到此结束 --> 
+ 
+  <!-- 主要页面部分 -->
+  <!-- <main> 元素用于定义页面主体的最重要的部分。
+    这里指定了 Bootstrap 选择器container，这是一种对页面元素进行编组的简单方式。
+    我们将在这个容器中放置两个 <div> 元素。 -->
+  <main class="container"> 
+    <!-- 第一个 <div> 元素（见❷）包含一个 page_header 块，在大多数页面中将使用它来指定标题。
+        为了突出标题，设置内边距。内边距（padding）指的是元素内容和边框之间的距离。
+        选择器pb-2 是一个 Bootstrap 指令，将元素的下内边距设置为恰当的值。
+        外边距（margin）指的是元素的边框与其他元素之间的距离。
+        选择器 mb-2 将这个 div 的下外边距设置为恰当的值。
+        我们只想添加下边框，因此使用选择器 border-bottom，它在page_header 块的下面添加较细的边框。 -->
+    <div class="pb-2 mb-2 border-bottom"> 
+      {% block page_header %}{% endblock page_header %} 
+    </div> 
+    <!-- 第二个 <div> 元素，其中包含 content 块（见❸）。
+        我们没有为这个 content 块指定样式，因此在具体的页面中，可根据需要设置内容的样式。 -->
+    <div> 
+      {% block content %}{% endblock content %} 
+    </div> 
+  </main> 
+ 
+</body> 
+</html>
+
+

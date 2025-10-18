@@ -1,0 +1,17 @@
+{% extends 'learning_logs/base.html' %} 
+{% load django_bootstrap5 %} 
+
+{% block page_header %} 
+  <h2>Log in to your account.</h2> 
+{% endblock page_header %} 
+ 
+{% block content %} 
+  <!-- 从这个模板中删除了代码块  if form.errors ，因为django-bootstrap5 会自动管理表单错误。 -->
+  <form action="{% url 'accounts:login' %}" method='post'> 
+    {% csrf_token %} 
+    <!-- 模板标签 booststrap_form将 Bootstrap 样式规则应用于各个表单元素。 -->
+    {% bootstrap_form form %} 
+    <!-- 标签 bootstrap_button ，通过实参将按钮类型指定为提交按钮，并将标签指定为 Log in -->
+    {% bootstrap_button button_type="submit" content="Log in" %}
+  </form>
+{% endblock content %}
