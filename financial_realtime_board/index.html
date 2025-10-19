@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态金融数据看板</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="financial-widget">
+        <div class="header">
+            <h1>📈 金融数据看板</h1>
+            <p class="subtitle">实时追踪您关注的金融产品</p>
+        </div>
+        
+        <!-- 添加产品控制面板 -->
+        <div class="control-panel">
+            <div class="panel-header">
+                <h3>添加关注产品</h3>
+            </div>
+            <div class="add-product-form">
+                <select id="product-type">
+                    <option value="stock">股票/指数</option>
+                    <option value="fund">基金</option>
+                    <option value="crypto">加密货币</option>
+                </select>
+                <input type="text" id="product-code" placeholder="输入代码 (如: sh000001)" />
+                <input type="text" id="product-name" placeholder="输入名称 (可选)" />
+                <button id="add-product-btn" class="primary-btn">+ 添加</button>
+            </div>
+            
+            <!-- 快速添加示例 -->
+            <div class="quick-add">
+                <span class="quick-add-label">快速添加:</span>
+                <div class="quick-add-buttons">
+                    <button class="quick-btn" onclick="quickAdd('stock', 'sh000001', '上证指数')">上证指数</button>
+                    <button class="quick-btn" onclick="quickAdd('stock', 'sz399001', '深证成指')">深证成指</button>
+                    <button class="quick-btn" onclick="quickAdd('fund', '161725', '招商白酒')">招商白酒</button>
+                    <button class="quick-btn" onclick="quickAdd('crypto', 'BTCUSDT', '比特币')">比特币</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 产品展示区域 -->
+        <div class="products-container">
+            <div id="products-list">
+                <!-- 动态内容 -->
+            </div>
+        </div>
+
+        <!-- 状态信息 -->
+        <div class="status-bar">
+            <div class="status-info">
+                <span id="last-update">最后更新: --</span>
+                <span class="divider">|</span>
+                <span id="product-count">产品数量: 0</span>
+            </div>
+            <button id="refresh-all-btn" class="secondary-btn">🔄 刷新全部</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
