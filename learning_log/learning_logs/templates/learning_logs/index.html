@@ -1,0 +1,33 @@
+{% extends 'learning_logs/base.html' %} 
+
+{% block page_header %} 
+<!-- jumbotron 是使用两个应用了一系列样式设置指令的 <div>元素实现的 -->
+  <!-- 在外面的 div 中，指定了内边距和外边距设置、浅色背景以及圆角设置。 -->
+  <div class="p-3 mb-4 bg-light border rounded-3"> 
+    <!-- 里面的 div 是一个容器，其尺寸随窗口的大小而变化，也指定了内边距设置：
+     选择器 py-4 在这个 div 中添加了上内边距和下内边距。 -->
+    <div class="container-fluid py-4">  
+      <!-- <h1>元素表示一级标题，而选择器 display-3 让这个标题显得更瘦更高 -->
+      <h1 class="display-3">Track your learning.</h1> 
+      <!--  lead 类设置这个段落的格式，让它在常规段落中更加显眼。 -->
+      <p class="lead">Make your own Learning Log, and keep a list of the 
+        topics you're learning about. Whenever you learn something new 
+        about a topic, make an entry summarizing what you've learned.</p> 
+      <!-- 邀请用户注册账户，创建一个按钮。
+       这个按钮也被链接到注册页面，不同之处是它更加显眼，并且让用户知道需要如何做
+       才能使用这个项目。代码 &raquo; 是一个 HTML 实体，表示两个右尖括号（>>） -->
+      <a class="btn btn-primary btn-lg mt-1" 
+        href="{% url 'accounts:register' %}">Register &raquo;
+      </a> 
+    </div> 
+  </div> 
+{% endblock page_header %}
+
+<!-- 我们不想在这个页面中添加其他内容，因此不需要定义 content 块。 -->
+ <!-- 以下模块被注释掉，但页面上实际还是会显示出来，彻底删掉才可以 -->
+
+<!-- {% block content %}
+  <p>Learning Log helps you keep track of your learning, for any 
+topic you're 
+interested in.</p>
+{% endblock content %} -->
