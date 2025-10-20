@@ -13,6 +13,66 @@ class DynamicFinancialWidget {
         console.log('🔄 DynamicFinancialWidget构造函数执行');
         this.products = this.loadFromStorage();
         this.lastUpdate = null;
+        this.lastRequestTime = 0;
+        this.requestInterval = 1000;
+
+        // 市场交易时间配置（北京时间）
+        this.marketHours = {
+            // A股交易时间
+            stock: {
+                isTrading: function (dataTime) {
+                    const time = new Date(dataTime);
+                    const day = time.getDay(); // 0=周日, 1=周一, ..., 6=周六
+                    const hour = time.getHours();
+                    const minute = time.getMinutes();
+
+                    // 周末休市
+                    if (day === 0 || day === 6) return false;
+
+                    // 上午交易时间: 9:30-11:30
+                    const isMorning = (hour === 9 && minute >= 30) ||
+                        (hour === 10) ||
+                        (hour === 11 && minute <= 30);
+
+                    // 下午交易时间: 13:00-15:00
+                    const isAfternoon = (hour === 13) ||
+                        (hour === 14) ||
+                        (hour === 15 && minute === 0);
+
+                    return isMorning || isAfternoon;
+                },
+                closeTime: '15:00:00'
+            },
+
+            // 基金交易时间（净值估算时间）
+            fund: {
+                isTrading: function (dataTime) {
+                    const time = new Date(dataTime);
+                    const day = time.getDay();
+                    const totalMinutes = time.getHours() * 60 + time.getMinutes();
+
+                    // 周末休市
+                    if (day === 0 || day === 6) return false;
+
+                    // 基金估算时间: 9:00-15:00（包含9:00，不包含15:00）
+                    // 即 9:00:00 到 14:59:59 为交易时间
+                    const startMinutes = 9 * 60;   // 9:00 = 540分钟
+                    const endMinutes = 15 * 60;    // 15:00 = 900分钟
+
+                    return totalMinutes >= startMinutes && totalMinutes < endMinutes;
+                },
+                closeTime: '15:00:00'
+            },
+
+            // 加密货币24小时交易
+            crypto: {
+                isTrading: function (dataTime) {
+                    return true; // 24小时交易
+                },
+                closeTime: null
+            }
+        };
+
         this.init();
     }
 
@@ -51,7 +111,7 @@ class DynamicFinancialWidget {
         const refreshAllBtn = document.getElementById('refresh-all-btn');
         if (refreshAllBtn) {
             refreshAllBtn.addEventListener('click', () => {
-                this.updateAllPrices();
+                this.updateAllPrices(true); // true表示跳过闭市判断
             });
         }
         
@@ -162,6 +222,7 @@ class DynamicFinancialWidget {
         `;
     }
 
+    // 在 renderProductRow 方法中修改时间显示部分
     renderProductRow(product, index) {
         const globalIndex = this.products.findIndex(p => p === product);
 
@@ -176,6 +237,7 @@ class DynamicFinancialWidget {
         let changeDisplay = '--';
         let changePercentDisplay = '--';
         let timeDisplay = '--';
+        let errorDisplay = ''; // 新增：错误信息显示
         let rowClass = '';
 
         // 状态列逻辑
@@ -193,21 +255,39 @@ class DynamicFinancialWidget {
             statusClass = 'status-failure';
         }
 
-        // 数据列逻辑
+        // 数据列逻辑 - 只要有数据就显示，不管当前是否出错
         if (hasData) {
             const data = product.lastData;
             const changeClass = data.change > 0 ? 'positive' : data.change < 0 ? 'negative' : '';
             const changePercentClass = data.changePercent > 0 ? 'positive' : data.changePercent < 0 ? 'negative' : '';
 
-            priceDisplay = data.price.toFixed(2);
-            changeDisplay = (data.change > 0 ? '+' : '') + data.change.toFixed(2);
-            changePercentDisplay = (data.changePercent > 0 ? '+' : '') + data.changePercent.toFixed(2) + '%';
+            // 根据产品类型格式化显示
+            if (product.type === 'fund') {
+                // 基金：价格4位小数，涨跌幅2位小数
+                priceDisplay = data.price.toFixed(4);
+                changeDisplay = (data.change > 0 ? '+' : '') + data.change.toFixed(4);
+                changePercentDisplay = (data.changePercent > 0 ? '+' : '') + data.changePercent.toFixed(2) + '%';
+            } else {
+            // 股票和加密货币：价格2位小数，涨跌幅2位小数
+                priceDisplay = data.price.toFixed(2);
+                changeDisplay = (data.change > 0 ? '+' : '') + data.change.toFixed(2);
+                changePercentDisplay = (data.changePercent > 0 ? '+' : '') + data.changePercent.toFixed(2) + '%';
+            }
 
-            // 时间显示逻辑：如果有更新时间就格式化显示
-            if (product.lastUpdate) {
+            // 时间显示逻辑：如果有成功时间显示成功时间
+            if (product.dataTime) {
+                timeDisplay = this.formatTime(product.dataTime);
+            } else if (product.lastUpdate) {
                 timeDisplay = this.formatTime(product.lastUpdate);
             } else {
-                timeDisplay = '数据待更新';
+                timeDisplay = '--';
+            }
+
+            // 检查是否闭市（仅用于显示提示）
+            const isClosed = product.dataTime && !this.shouldUpdateProduct(product);
+            // 在时间显示部分添加闭市提示
+            if (isClosed) {
+                timeDisplay += '<div class="market-closed-hint">(已闭市)</div>';
             }
 
             rowClass = `${changeClass} ${changePercentClass}`;
@@ -219,13 +299,17 @@ class DynamicFinancialWidget {
             timeDisplay = '--';
         }
 
-        // 如果有错误，添加错误行样式
+        // 错误信息显示逻辑
         if (hasError) {
             rowClass += ' error-row';
-            // 如果是错误状态但有旧数据，在时间后面添加错误标识
-            if (hasData && product.lastUpdate) {
-                timeDisplay += ' (更新失败)';
-            }
+            // 如果有错误，在时间下方显示失败信息
+            const errorTime = new Date().toLocaleTimeString('zh-CN', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            errorDisplay = `<div class="error-time">(${errorTime} 更新失败)</div>`;
         }
         
         return `
@@ -247,12 +331,13 @@ class DynamicFinancialWidget {
                     ${changePercentDisplay}
                 </div>
                 <div class="data-cell">
-                    <div class="update-time ${hasError ? 'error-time' : ''}">
+                    <div class="update-time ${hasError ? 'has-error' : ''}">
                         ${timeDisplay}
+                        ${errorDisplay}
                     </div>
                 </div>
                 <div class="actions-cell">
-                    <button class="refresh-single-btn" title="刷新" onclick="financialWidget.updateSingleProduct(${globalIndex})">
+                    <button class="refresh-single-btn" title="刷新" onclick="financialWidget.updateSingleProduct(${globalIndex}, true)">
                         🔄
                     </button>
                     <button class="delete-btn" title="删除" onclick="financialWidget.removeProduct(${globalIndex})">
@@ -413,159 +498,179 @@ class DynamicFinancialWidget {
         console.log(`📡 获取 ${dataType} 数据: ${dataCode}`);
         
         const apis = {
+            // 完全重写股票数据获取方法，不使用CORS代理
             stock: async (code) => {
                 return new Promise((resolve, reject) => {
-                    // 使用更稳定的JSONP实现
-                    const callbackName = `jsonp_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+                    console.log(`📡 获取股票数据: ${code}`);
+
                     const timeout = setTimeout(() => {
                         cleanup();
-                        reject(new Error('获取失败'));
+                        reject(new Error('请求超时'));
                     }, 8000);
+
+                    const globalVarName = `v_${code.replace('.', '_')}`;
 
                     const cleanup = () => {
                         clearTimeout(timeout);
-                        delete window[callbackName];
+                        delete window[globalVarName];
                         if (script.parentNode) {
                             script.parentNode.removeChild(script);
                         }
                     };
 
-                    // 设置回调函数 - 处理不同的数据格式
-                    window[callbackName] = (data) => {
-                        cleanup();
-                        console.log('JSONP回调收到数据:', data);
+                    const checkData = () => {
+                        const data = window[globalVarName];
+                        if (data && typeof data === 'string') {
+                            cleanup();
 
-                        if (typeof data === 'string') {
-                // 处理字符串格式的数据
                             try {
-                                // 尝试解析腾讯财经格式
-                                if (data.includes('~')) {
-                                    const items = data.split('~');
-                                    if (items.length >= 6) {
-                                        resolve({
-                                            price: parseFloat(items[3]) || 0,
-                                            change: parseFloat(items[4]) || 0,
-                                            changePercent: parseFloat(items[5]) || 0,
-                                            productName: items[1] || `股票${code}`
-                                        });
-                                        return;
-                                    }
-                                }
+                                const content = data.replace(/"/g, '');
+                                const items = content.split('~');
 
-                                // 尝试解析新浪财经格式
-                                if (data.includes(',')) {
-                                    const items = data.split(',');
-                                    if (items.length >= 4) {
+                                if (items.length >= 6) {
+                                    const currentPrice = parseFloat(items[3]);
+                                    const prevClose = parseFloat(items[5]);
+
+                                    if (!isNaN(currentPrice) && !isNaN(prevClose)) {
+                                        const change = currentPrice - prevClose;
+                                        const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
+
+                                        // 获取数据时间（从返回数据中解析，如果没有就使用当前时间）
+                                        let dataTime = new Date();
+                                        // 尝试从数据中解析时间（腾讯财经数据可能包含时间信息）
+                                        if (items.length > 30 && items[30]) {
+                                            // 腾讯财经时间格式: 20251020161412
+                                            const timeStr = items[30];
+                                            if (timeStr.length === 14) {
+                                                const year = timeStr.substring(0, 4);
+                                                const month = timeStr.substring(4, 6);
+                                                const day = timeStr.substring(6, 8);
+                                                const hour = timeStr.substring(8, 10);
+                                                const minute = timeStr.substring(10, 12);
+                                                const second = timeStr.substring(12, 14);
+                                                dataTime = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`);
+                                            }
+                                        }
+
+                                        console.log(`✅ ${code} 数据获取成功:`, {
+                                            name: items[1],
+                                            price: currentPrice,
+                                            dataTime: dataTime.toLocaleString()
+                                        });
+
                                         resolve({
-                                            price: parseFloat(items[1]) || 0,
-                                            change: parseFloat(items[2]) || 0,
-                                            changePercent: parseFloat(items[3]) || 0,
-                                            productName: items[0] || `股票${code}`
+                                            price: parseFloat(currentPrice.toFixed(2)),
+                                            change: parseFloat(change.toFixed(2)),
+                                            changePercent: parseFloat(changePercent.toFixed(2)),
+                                            productName: items[1] || `股票${code}`,
+                                            dataTime: dataTime.getTime() // 保存数据对应的时间戳
                                         });
                                         return;
                                     }
                                 }
-                            } catch (e) {
-                                console.log('数据解析失败:', e);
+                            } catch (error) {
+                                console.error('数据解析错误:', error);
                             }
-                        }
 
-                        reject(new Error('数据格式错误'));
+                            reject(new Error('数据格式错误'));
+                        } else if (data) {
+                            cleanup();
+                            reject(new Error('数据格式不正确'));
+                        } else {
+                            setTimeout(checkData, 100);
+                        }
                     };
 
                     const script = document.createElement('script');
+                    script.src = `https://qt.gtimg.cn/q=${code}`;
 
-                    // 使用HTTPS源，避免混合内容问题
-                    const sources = [
-                        `https://proxy.cors.sh/http://qt.gtimg.cn/q=${code}&callback=${callbackName}`,
-                        `https://qt.gtimg.cn/q=${code}?callback=${callbackName}`,
-                        `https://hq.sinajs.cn/list=${code}&callback=${callbackName}`
-                    ];
-
-                    let currentSource = 0;
-
-                    const tryNextSource = () => {
-                        if (currentSource >= sources.length) {
-                            cleanup();
-                            reject(new Error('获取失败'));
-                            return;
-                        }
-
-                        script.src = sources[currentSource];
-                        console.log(`尝试JSONP源 ${currentSource + 1}:`, script.src);
-
-                        script.onload = () => {
-                            // 如果onload触发但没有回调，说明格式不对
-                            setTimeout(() => {
-                                if (window[callbackName]) {
-                                    currentSource++;
-                                    tryNextSource();
-                                }
-                            }, 1000);
-                        };
-
-                        script.onerror = () => {
-                            console.log(`JSONP源 ${currentSource + 1} 加载失败`);
-                            currentSource++;
-                            tryNextSource();
-                        };
-
-                        document.head.appendChild(script);
+                    script.onload = () => {
+                        console.log(`📄 ${code} Script加载完成，等待数据`);
+                        setTimeout(checkData, 500);
                     };
 
-                    tryNextSource();
+                    script.onerror = () => {
+                        cleanup();
+                        reject(new Error('脚本加载失败'));
+                    };
+
+                    document.head.appendChild(script);
                 });
             },
 
             fund: async (code) => {
-                const proxies = [
-                    'https://api.allorigins.win/raw?url=',
-                    'https://cors-proxy.htmldriven.com/?url=',
-                    'https://cors.bridged.cc/'
-                ];
+                return new Promise((resolve, reject) => {
+                    console.log(`📡 获取基金数据: ${code}`);
 
-                for (let proxy of proxies) {
-                    try {
-                        const targetUrl = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
-                        console.log(`尝试基金代理: ${proxy}`);
+                    const timeout = setTimeout(() => {
+                        cleanup();
+                        reject(new Error('请求超时'));
+                    }, 8000);
 
-                        const response = await fetch(proxy + encodeURIComponent(targetUrl));
-
-                        if (!response.ok) {
-                            console.log(`基金代理响应状态: ${response.status}`);
-                            continue;
+                    const cleanup = () => {
+                        clearTimeout(timeout);
+                        delete window.jsonpgz;
+                        if (script.parentNode) {
+                            script.parentNode.removeChild(script);
                         }
+                    };
 
-                        const text = await response.text();
-                        console.log('基金API响应:', text.substring(0, 100));
+                    window.jsonpgz = function (data) {
+                        cleanup();
+                        console.log('基金数据:', data);
 
-                        const match = text.match(/jsonpgz\((.+)\)/);
-                        if (!match) {
-                            console.log('基金JSONP格式不匹配');
-                            continue;
+                        if (data && typeof data === 'object') {
+                            const netValue = parseFloat(data.dwjz);
+                            const estimateValue = parseFloat(data.gsz);
+                            const estimateChangePercent = parseFloat(data.gszzl);
+                            const estimateChange = estimateValue - netValue;
+
+                            // === 修改：使用 gztime 作为基金数据时间 ===
+                            let dataTime = new Date();
+                            if (data.gztime) {
+                                try {
+                                    // gztime 格式: "2025-10-20 15:00"
+                                    const [datePart, timePart] = data.gztime.split(' ');
+                                    const [year, month, day] = datePart.split('-');
+                                    const [hour, minute] = timePart.split(':');
+
+                                    dataTime = new Date(
+                                        parseInt(year),
+                                        parseInt(month) - 1,
+                                        parseInt(day),
+                                        parseInt(hour),
+                                        parseInt(minute),
+                                        0, 0
+                                    );
+                                    console.log(`基金估值时间: ${data.gztime}, 解析为:`, dataTime);
+                                } catch (error) {
+                                    console.error('解析基金估值时间失败:', error);
+                                    // 解析失败时使用当前时间
+                                }
+                            }
+
+                            resolve({
+                                price: parseFloat(estimateValue.toFixed(4)),
+                                change: parseFloat(estimateChange.toFixed(4)),
+                                changePercent: parseFloat(estimateChangePercent.toFixed(2)),
+                                productName: data.name || `基金${code}`,
+                                dataTime: dataTime.getTime() // 使用估值时间
+                            });
+                        } else {
+                            reject(new Error('基金数据格式错误'));
                         }
+                    };
 
-                        const data = JSON.parse(match[1]);
-                        console.log('解析后的基金数据:', data);
+                    const script = document.createElement('script');
+                    script.src = `https://fundgz.1234567.com.cn/js/${code}.js`;
 
-                        if (!data.dwjz || !data.gsz) {
-                            throw new Error('基金数据不完整');
-                        }
+                    script.onerror = () => {
+                        cleanup();
+                        reject(new Error('基金脚本加载失败'));
+                    };
 
-                        return {
-                            price: parseFloat(data.dwjz),
-                            change: parseFloat(data.gsz) - parseFloat(data.dwjz),
-                            changePercent: parseFloat(data.gszzl),
-                            productName: data.name
-                        };
-
-                    } catch (error) {
-                        console.log(`基金代理失败:`, error.message);
-                        continue;
-                    }
-                }
-
-                throw new Error('获取失败');
+                    document.head.appendChild(script);
+                });
             },
 
             crypto: async (code) => {
@@ -634,9 +739,14 @@ class DynamicFinancialWidget {
     }
 
     // 在 updateSingleProduct 方法中修改错误处理逻辑
-    async updateSingleProduct(index) {
+    async updateSingleProduct(index, skipMarketCheck = false) {
         const product = this.products[index];
         if (!product) return;
+
+        if (!skipMarketCheck && !this.shouldUpdateProduct(product)) {
+            console.log(`⏸️ ${product.name} 已闭市，跳过自动更新`);
+            return;
+        }
 
         try {
             this.showProductLoading(index, true);
@@ -647,6 +757,7 @@ class DynamicFinancialWidget {
             // 保存成功的数据，并更新时间
             product.lastData = data;
             product.lastUpdate = Date.now();
+            product.dataTime = data.dataTime; // 新增：数据对应的时间
             product.lastError = null; // 清除错误状态
 
             if (data.productName && !product.displayName) {
@@ -717,7 +828,7 @@ class DynamicFinancialWidget {
         }
     }
 
-    async updateAllPrices() {
+    async updateAllPrices(skipMarketCheck = false) {
         console.log('🔄 更新所有产品价格');
         const updateTime = new Date();
         this.lastUpdate = updateTime;
@@ -728,7 +839,7 @@ class DynamicFinancialWidget {
         }
 
         for (let i = 0; i < this.products.length; i++) {
-            await this.updateSingleProduct(i);
+            await this.updateSingleProduct(i, skipMarketCheck);
             // 添加小延迟避免请求过于频繁
             await new Promise(resolve => setTimeout(resolve, 500));
         }
@@ -737,19 +848,23 @@ class DynamicFinancialWidget {
     // 分类更新方法
     updateStocks() {
         console.log('🔄 自动更新股票数据');
-        const stockProducts = this.products.filter(p => p.type === 'stock');
+        const stockProducts = this.products.filter(p => p.type === 'stock' && this.shouldUpdateProduct(p));
         if (stockProducts.length > 0) {
             console.log(`更新 ${stockProducts.length} 个股票产品`);
             this.updateProducts(stockProducts);
+        } else {
+            console.log('所有股票产品已闭市，跳过自动更新');
         }
     }
 
     updateFunds() {
         console.log('🔄 自动更新基金数据');
-        const fundProducts = this.products.filter(p => p.type === 'fund');
+        const fundProducts = this.products.filter(p => p.type === 'fund' && this.shouldUpdateProduct(p));
         if (fundProducts.length > 0) {
             console.log(`更新 ${fundProducts.length} 个基金产品`);
             this.updateProducts(fundProducts);
+        } else {
+            console.log('所有基金产品已闭市，跳过自动更新');
         }
     }
 
@@ -797,6 +912,39 @@ class DynamicFinancialWidget {
         }, 1800000);
 
         console.log('✅ 自动更新计划已设置: 股票/加密货币10分钟 | 基金30分钟');
+    }
+
+    // === 新增：闭市判断方法 ===
+    shouldUpdateProduct(product) {
+        if (!product.dataTime) {
+            return true; // 没有数据时间，继续更新
+        }
+
+        const marketConfig = this.marketHours[product.type];
+        if (!marketConfig) {
+            return true; // 没有配置的交易时间，继续更新
+        }
+
+        // 检查是否在交易时间
+        const isTrading = marketConfig.isTrading(product.dataTime);
+        console.log(`${product.name} 交易状态:`, isTrading ? '交易中' : '已闭市');
+
+        return isTrading;
+    }
+
+    // === 新增：批量产品更新方法，用于自动更新 ===
+    async updateProducts(products) {
+        for (let i = 0; i < products.length; i++) {
+            const product = products[i];
+            const index = this.products.findIndex(p => p === product);
+            if (index !== -1) {
+                await this.updateSingleProduct(index, false); // false表示应用闭市判断
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        // 更新最后更新时间
+        this.updateLastUpdateTime();
     }
 }
 

@@ -632,6 +632,45 @@ body {
     }
 }
 
+/* 更新时间单元格样式 */
+.update-time {
+    font-size: 9px;
+    color: #999;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+/* 有错误时的更新时间样式 */
+.update-time.has-error {
+    white-space: normal;
+    line-height: 1.3;
+}
+
+/* 错误时间信息样式 */
+.error-time {
+    color: #ff4d4f;
+    font-size: 8px;
+    font-style: italic;
+    margin-top: 1px;
+}
+
+/* 错误行的视觉提示 */
+.error-row {
+    background: #fffaf0 !important;
+    border-left: 3px solid #faad14 !important;
+}
+
+.error-row:hover {
+    background: #fff7e6 !important;
+}
+
+/* === 新增：闭市提示样式 === */
+.market-closed-hint {
+    color: #999;
+    font-size: 8px;
+    font-style: italic;
+    margin-top: 1px;
+}
 
 
 /* 添加调试模式 - 显示所有框线 */
