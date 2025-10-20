@@ -144,16 +144,19 @@ class DynamicFinancialWidget {
         return `
             <div class="category-section">
                 <h3 class="category-title">${title}</h3>
-                <div class="products-table">
-                    <div class="table-header">
-                        <div class="table-header-cell">产品名称</div>
-                        <div class="table-header-cell">最新价</div>
-                        <div class="table-header-cell">涨跌额</div>
-                        <div class="table-header-cell">涨跌幅</div>
-                        <div class="table-header-cell">更新时间</div>
-                        <div class="table-header-cell">操作</div>
+                <div class="table-container">
+                    <div class="products-table">
+                        <div class="table-header">
+                            <div class="table-header-cell">产品名称</div>
+                            <div class="table-header-cell">状态</div>
+                            <div class="table-header-cell">最新价</div>
+                            <div class="table-header-cell">涨跌额</div>
+                            <div class="table-header-cell">涨跌幅</div>
+                            <div class="table-header-cell">更新时间</div>
+                            <div class="table-header-cell">操作</div>
+                        </div>
+                        ${products.map((product, index) => this.renderProductRow(product, index)).join('')}
                     </div>
-                    ${products.map((product, index) => this.renderProductRow(product, index)).join('')}
                 </div>
             </div>
         `;
@@ -161,26 +164,92 @@ class DynamicFinancialWidget {
 
     renderProductRow(product, index) {
         const globalIndex = this.products.findIndex(p => p === product);
-        const changeClass = product.lastData?.change > 0 ? 'positive' : product.lastData?.change < 0 ? 'negative' : '';
-        const changePercentClass = product.lastData?.changePercent > 0 ? 'positive' : product.lastData?.changePercent < 0 ? 'negative' : '';
+
+        // 检查状态
+        const isLoading = product.element?.classList.contains('updating');
+        const hasError = !!product.lastError;
+        const hasData = product.lastData && product.lastData.price;
+
+        let statusDisplay = '';
+        let statusClass = '';
+        let priceDisplay = '--';
+        let changeDisplay = '--';
+        let changePercentDisplay = '--';
+        let timeDisplay = '--';
+        let rowClass = '';
+
+        // 状态列逻辑
+        if (isLoading) {
+            statusDisplay = '🔄';
+            statusClass = 'status-loading';
+        } else if (hasError) {
+            statusDisplay = '❌';
+            statusClass = 'status-failure';
+        } else if (hasData && product.lastUpdate) {
+            statusDisplay = '✅';
+            statusClass = 'status-success';
+        } else {
+            statusDisplay = '❌';
+            statusClass = 'status-failure';
+        }
+
+        // 数据列逻辑
+        if (hasData) {
+            const data = product.lastData;
+            const changeClass = data.change > 0 ? 'positive' : data.change < 0 ? 'negative' : '';
+            const changePercentClass = data.changePercent > 0 ? 'positive' : data.changePercent < 0 ? 'negative' : '';
+
+            priceDisplay = data.price.toFixed(2);
+            changeDisplay = (data.change > 0 ? '+' : '') + data.change.toFixed(2);
+            changePercentDisplay = (data.changePercent > 0 ? '+' : '') + data.changePercent.toFixed(2) + '%';
+
+            // 时间显示逻辑：如果有更新时间就格式化显示
+            if (product.lastUpdate) {
+                timeDisplay = this.formatTime(product.lastUpdate);
+            } else {
+                timeDisplay = '数据待更新';
+            }
+
+            rowClass = `${changeClass} ${changePercentClass}`;
+        } else {
+            // 完全没有数据时显示 --
+            priceDisplay = '--';
+            changeDisplay = '--';
+            changePercentDisplay = '--';
+            timeDisplay = '--';
+        }
+
+        // 如果有错误，添加错误行样式
+        if (hasError) {
+            rowClass += ' error-row';
+            // 如果是错误状态但有旧数据，在时间后面添加错误标识
+            if (hasData && product.lastUpdate) {
+                timeDisplay += ' (更新失败)';
+            }
+        }
         
         return `
-            <div class="product-row">
+            <div class="product-row ${rowClass}">
                 <div class="product-info-cell">
                     <div class="product-name">${product.displayName || product.name}</div>
                     <div class="product-code">${product.code}</div>
                 </div>
+                <div class="status-cell ${statusClass}">
+                    ${statusDisplay}
+                </div>
                 <div class="data-cell price-cell">
-                    ${product.lastData?.price ? product.lastData.price.toFixed(2) : '--'}
+                    ${priceDisplay}
                 </div>
-                <div class="data-cell change-cell ${changeClass}">
-                    ${product.lastData?.change ? (product.lastData.change > 0 ? '+' : '') + product.lastData.change.toFixed(2) : '--'}
+                <div class="data-cell change-cell">
+                    ${changeDisplay}
                 </div>
-                <div class="data-cell change-percent-cell ${changePercentClass}">
-                    ${product.lastData?.changePercent ? (product.lastData.changePercent > 0 ? '+' : '') + product.lastData.changePercent.toFixed(2) + '%' : '--'}
+                <div class="data-cell change-percent-cell">
+                    ${changePercentDisplay}
                 </div>
                 <div class="data-cell">
-                    <div class="update-time">${product.lastUpdate ? this.formatTime(product.lastUpdate) : '--'}</div>
+                    <div class="update-time ${hasError ? 'error-time' : ''}">
+                        ${timeDisplay}
+                    </div>
                 </div>
                 <div class="actions-cell">
                     <button class="refresh-single-btn" title="刷新" onclick="financialWidget.updateSingleProduct(${globalIndex})">
@@ -206,8 +275,26 @@ class DynamicFinancialWidget {
 
     formatTime(timestamp) {
         if (!timestamp) return '';
+
         const date = new Date(timestamp);
-        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+        const now = new Date();
+
+        // 转换为北京时间 (UTC+8)
+        const beijingDate = new Date(date.getTime());
+        const beijingNow = new Date(now.getTime());
+
+        // 判断是否是今天（北京时间）
+        const isToday = beijingDate.getDate() === beijingNow.getDate() &&
+            beijingDate.getMonth() === beijingNow.getMonth() &&
+            beijingDate.getFullYear() === beijingNow.getFullYear();
+
+        if (isToday) {
+            // 今天的数据：显示时分秒
+            return `${beijingDate.getHours().toString().padStart(2, '0')}:${beijingDate.getMinutes().toString().padStart(2, '0')}:${beijingDate.getSeconds().toString().padStart(2, '0')}`;
+        } else {
+            // 不是今天的数据：显示年月日 时分秒
+            return `${beijingDate.getFullYear()}-${(beijingDate.getMonth() + 1).toString().padStart(2, '0')}-${beijingDate.getDate().toString().padStart(2, '0')} ${beijingDate.getHours().toString().padStart(2, '0')}:${beijingDate.getMinutes().toString().padStart(2, '0')}:${beijingDate.getSeconds().toString().padStart(2, '0')}`;
+        }
     }
 
     addCustomProduct() {
@@ -232,6 +319,11 @@ class DynamicFinancialWidget {
         if (!code) {
             alert('请输入产品代码');
             return;
+        }
+
+        // 如果名称为空，使用代码作为名称
+        if (!name) {
+            name = code;
         }
 
         this.addProduct(selectedType, code, name);
@@ -259,8 +351,9 @@ class DynamicFinancialWidget {
             name: productName,
             displayName: productName || this.getDefaultName(productType, productCode),
             element: null,
-            lastData: null,
-            lastUpdate: null
+            lastData: null,        // 最后一次成功数据
+            lastError: null,       // 当前错误状态（null表示没有错误）
+            lastUpdate: null       // 最后一次成功更新时间（null表示从未成功过）
         };
 
         this.products.push(newProduct);
@@ -285,7 +378,8 @@ class DynamicFinancialWidget {
             'fund': {
                 '161725': '招商白酒',
                 '110022': '易方达消费',
-                '000961': '天弘沪深300'
+                '000961': '天弘沪深300',
+                '003864': '招商招旺纯债C'
             },
             'crypto': {
                 'BTCUSDT': '比特币',
@@ -314,114 +408,269 @@ class DynamicFinancialWidget {
         }
     }
 
-    // 获取价格数据 - 增强版，尝试获取产品名称
+    // 获取价格数据 - 严格模式，失败就抛出错误
     async fetchPrice(dataType, dataCode) {
-        console.log(`📡 获取价格: ${dataType} - ${dataCode}`);
+        console.log(`📡 获取 ${dataType} 数据: ${dataCode}`);
         
         const apis = {
             stock: async (code) => {
-                try {
-                    const response = await fetch(`https://hq.sinajs.cn/list=${code}`, {
-                        headers: { 'Referer': 'https://finance.sina.com.cn' }
-                    });
-                    const text = await response.text();
-                    const data = text.match(/="(.+)"/)[1].split(',');
-                    
-                    // 股票数据包含名称在第一个字段
-                    const productName = data[0];
-                    
-                    return {
-                        price: parseFloat(data[1]),
-                        change: parseFloat(data[2]),
-                        changePercent: parseFloat(data[3]),
-                        productName: productName
+                return new Promise((resolve, reject) => {
+                    // 使用更稳定的JSONP实现
+                    const callbackName = `jsonp_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+                    const timeout = setTimeout(() => {
+                        cleanup();
+                        reject(new Error('获取失败'));
+                    }, 8000);
+
+                    const cleanup = () => {
+                        clearTimeout(timeout);
+                        delete window[callbackName];
+                        if (script.parentNode) {
+                            script.parentNode.removeChild(script);
+                        }
                     };
-                } catch (error) {
-                    console.error('股票API请求失败:', error);
-                    return this.generateMockData(1000, 5000);
-                }
+
+                    // 设置回调函数 - 处理不同的数据格式
+                    window[callbackName] = (data) => {
+                        cleanup();
+                        console.log('JSONP回调收到数据:', data);
+
+                        if (typeof data === 'string') {
+                // 处理字符串格式的数据
+                            try {
+                                // 尝试解析腾讯财经格式
+                                if (data.includes('~')) {
+                                    const items = data.split('~');
+                                    if (items.length >= 6) {
+                                        resolve({
+                                            price: parseFloat(items[3]) || 0,
+                                            change: parseFloat(items[4]) || 0,
+                                            changePercent: parseFloat(items[5]) || 0,
+                                            productName: items[1] || `股票${code}`
+                                        });
+                                        return;
+                                    }
+                                }
+
+                                // 尝试解析新浪财经格式
+                                if (data.includes(',')) {
+                                    const items = data.split(',');
+                                    if (items.length >= 4) {
+                                        resolve({
+                                            price: parseFloat(items[1]) || 0,
+                                            change: parseFloat(items[2]) || 0,
+                                            changePercent: parseFloat(items[3]) || 0,
+                                            productName: items[0] || `股票${code}`
+                                        });
+                                        return;
+                                    }
+                                }
+                            } catch (e) {
+                                console.log('数据解析失败:', e);
+                            }
+                        }
+
+                        reject(new Error('数据格式错误'));
+                    };
+
+                    const script = document.createElement('script');
+
+                    // 使用HTTPS源，避免混合内容问题
+                    const sources = [
+                        `https://proxy.cors.sh/http://qt.gtimg.cn/q=${code}&callback=${callbackName}`,
+                        `https://qt.gtimg.cn/q=${code}?callback=${callbackName}`,
+                        `https://hq.sinajs.cn/list=${code}&callback=${callbackName}`
+                    ];
+
+                    let currentSource = 0;
+
+                    const tryNextSource = () => {
+                        if (currentSource >= sources.length) {
+                            cleanup();
+                            reject(new Error('获取失败'));
+                            return;
+                        }
+
+                        script.src = sources[currentSource];
+                        console.log(`尝试JSONP源 ${currentSource + 1}:`, script.src);
+
+                        script.onload = () => {
+                            // 如果onload触发但没有回调，说明格式不对
+                            setTimeout(() => {
+                                if (window[callbackName]) {
+                                    currentSource++;
+                                    tryNextSource();
+                                }
+                            }, 1000);
+                        };
+
+                        script.onerror = () => {
+                            console.log(`JSONP源 ${currentSource + 1} 加载失败`);
+                            currentSource++;
+                            tryNextSource();
+                        };
+
+                        document.head.appendChild(script);
+                    };
+
+                    tryNextSource();
+                });
             },
 
             fund: async (code) => {
-                try {
-                    const response = await fetch(`https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`);
-                    const text = await response.text();
-                    const jsonStr = text.match(/jsonpgz\((.+)\)/)[1];
-                    const data = JSON.parse(jsonStr);
-                    
-                    return {
-                        price: parseFloat(data.dwjz),
-                        change: parseFloat(data.gsz) - parseFloat(data.dwjz),
-                        changePercent: parseFloat(data.gszzl),
-                        productName: data.name // 基金API返回名称
-                    };
-                } catch (error) {
-                    console.error('基金API请求失败:', error);
-                    return this.generateMockData(1, 3);
+                const proxies = [
+                    'https://api.allorigins.win/raw?url=',
+                    'https://cors-proxy.htmldriven.com/?url=',
+                    'https://cors.bridged.cc/'
+                ];
+
+                for (let proxy of proxies) {
+                    try {
+                        const targetUrl = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+                        console.log(`尝试基金代理: ${proxy}`);
+
+                        const response = await fetch(proxy + encodeURIComponent(targetUrl));
+
+                        if (!response.ok) {
+                            console.log(`基金代理响应状态: ${response.status}`);
+                            continue;
+                        }
+
+                        const text = await response.text();
+                        console.log('基金API响应:', text.substring(0, 100));
+
+                        const match = text.match(/jsonpgz\((.+)\)/);
+                        if (!match) {
+                            console.log('基金JSONP格式不匹配');
+                            continue;
+                        }
+
+                        const data = JSON.parse(match[1]);
+                        console.log('解析后的基金数据:', data);
+
+                        if (!data.dwjz || !data.gsz) {
+                            throw new Error('基金数据不完整');
+                        }
+
+                        return {
+                            price: parseFloat(data.dwjz),
+                            change: parseFloat(data.gsz) - parseFloat(data.dwjz),
+                            changePercent: parseFloat(data.gszzl),
+                            productName: data.name
+                        };
+
+                    } catch (error) {
+                        console.log(`基金代理失败:`, error.message);
+                        continue;
+                    }
                 }
+
+                throw new Error('获取失败');
             },
 
             crypto: async (code) => {
                 try {
                     const response = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${code}`);
+                    if (!response.ok) {
+                        throw new Error(`API响应状态: ${response.status}`);
+                    }
                     const data = await response.json();
+
+                    if (!data.lastPrice) {
+                        throw new Error('加密货币数据不完整');
+                    }
+
                     return {
                         price: parseFloat(data.lastPrice),
                         change: parseFloat(data.priceChange),
                         changePercent: parseFloat(data.priceChangePercent)
                     };
                 } catch (error) {
-                    console.error('加密货币API请求失败:', error);
-                    return this.generateMockData(10000, 50000);
+                    throw new Error(`加密货币API失败: ${error.message}`);
                 }
             }
         };
 
-        return await apis[dataType](dataCode);
+        const result = await apis[dataType](dataCode);
+        if (!result) {
+            throw new Error(`无法获取 ${dataType} 数据`);
+        }
+        return result;
     }
 
-    generateMockData(min, max) {
-        const basePrice = min + Math.random() * (max - min);
-        const changePercent = (Math.random() - 0.5) * 10;
-        const change = basePrice * changePercent / 100;
-        
-        return {
-            price: parseFloat(basePrice.toFixed(2)),
-            change: parseFloat(change.toFixed(2)),
-            changePercent: parseFloat(changePercent.toFixed(2))
-        };
+    // 通用的代理请求方法
+    async fetchWithProxies(url, parser, headers = {}) {
+        const proxies = [
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://corsproxy.io/?',
+            'https://thingproxy.freeboard.io/fetch/'
+        ];
+
+        for (let proxy of proxies) {
+            try {
+                console.log(`尝试代理: ${proxy}`);
+                const response = await fetch(proxy + encodeURIComponent(url), { headers });
+
+                if (!response.ok) {
+                    console.log(`代理响应状态: ${response.status}`);
+                    continue;
+                }
+
+                const text = await response.text();
+                const data = parser(text);
+
+                if (data) {
+                    console.log('成功获取数据');
+                    return data;
+                }
+
+            } catch (error) {
+                console.log(`代理失败:`, error.message);
+                continue;
+            }
+        }
+
+        return null;
     }
 
+    // 在 updateSingleProduct 方法中修改错误处理逻辑
     async updateSingleProduct(index) {
         const product = this.products[index];
         if (!product) return;
 
         try {
-            // 显示加载状态
             this.showProductLoading(index, true);
             
             const data = await this.fetchPrice(product.type, product.code);
+            console.log(`获取到 ${product.name} 的数据:`, data);
             
-            // 保存数据到产品对象
+            // 保存成功的数据，并更新时间
             product.lastData = data;
             product.lastUpdate = Date.now();
-            
-            // 如果API返回了产品名称且当前没有显示名称，则更新
+            product.lastError = null; // 清除错误状态
+
             if (data.productName && !product.displayName) {
                 product.displayName = data.productName;
             }
             
-            this.saveToStorage(); // 保存数据到本地存储
-            this.renderProducts(); // 重新渲染以显示新数据
+            this.saveToStorage();
+            this.renderProducts();
             
-            this.lastUpdate = new Date();
-            const lastUpdateElement = document.getElementById('last-update');
-            if (lastUpdateElement) {
-                lastUpdateElement.textContent = `最后更新: ${this.lastUpdate.toLocaleTimeString()}`;
-            }
+            this.updateLastUpdateTime();
             
         } catch (error) {
             console.error(`更新 ${product.name} 失败:`, error);
+
+            // 关键修改：只保存错误信息，不修改已有的成功数据
+            // 如果之前有成功数据，就保留；如果没有，就保持null
+            product.lastError = error.message || '获取失败';
+
+            // 重要：不修改 lastData 和 lastUpdate，保留上次成功的数据
+            // 只有在从未成功过的情况下，才保持null状态
+
+            this.saveToStorage();
+            this.renderProducts();
+
         } finally {
             this.showProductLoading(index, false);
         }
@@ -435,6 +684,36 @@ class DynamicFinancialWidget {
             product.element.classList.add('updating');
         } else {
             product.element.classList.remove('updating');
+        }
+
+        // 立即重新渲染以显示加载状态
+        this.renderProducts();
+    }
+
+    showProductError(index, errorMessage) {
+        const product = this.products[index];
+        if (!product.element) return;
+
+        // 在价格位置显示错误信息
+        const priceElement = product.element.querySelector('.price-cell');
+        if (priceElement) {
+            priceElement.textContent = '获取失败';
+            priceElement.style.color = '#ff4d4f';
+        }
+
+        // 在其他数据位置显示错误状态
+        const changeElement = product.element.querySelector('.change-cell');
+        const changePercentElement = product.element.querySelector('.change-percent-cell');
+
+        if (changeElement) changeElement.textContent = '--';
+        if (changePercentElement) changePercentElement.textContent = '--';
+    }
+
+    updateLastUpdateTime() {
+        this.lastUpdate = new Date();
+        const lastUpdateElement = document.getElementById('last-update');
+        if (lastUpdateElement) {
+            lastUpdateElement.textContent = `最后更新: ${this.lastUpdate.toLocaleTimeString()}`;
         }
     }
 
@@ -455,12 +734,69 @@ class DynamicFinancialWidget {
         }
     }
 
+    // 分类更新方法
+    updateStocks() {
+        console.log('🔄 自动更新股票数据');
+        const stockProducts = this.products.filter(p => p.type === 'stock');
+        if (stockProducts.length > 0) {
+            console.log(`更新 ${stockProducts.length} 个股票产品`);
+            this.updateProducts(stockProducts);
+        }
+    }
+
+    updateFunds() {
+        console.log('🔄 自动更新基金数据');
+        const fundProducts = this.products.filter(p => p.type === 'fund');
+        if (fundProducts.length > 0) {
+            console.log(`更新 ${fundProducts.length} 个基金产品`);
+            this.updateProducts(fundProducts);
+        }
+    }
+
+    updateCryptos() {
+        console.log('🔄 自动更新加密货币数据');
+        const cryptoProducts = this.products.filter(p => p.type === 'crypto');
+        if (cryptoProducts.length > 0) {
+            console.log(`更新 ${cryptoProducts.length} 个加密货币产品`);
+            this.updateProducts(cryptoProducts);
+        }
+    }
+
+    // 通用产品更新方法
+    async updateProducts(products) {
+        for (let i = 0; i < products.length; i++) {
+            const product = products[i];
+            const index = this.products.findIndex(p => p === product);
+            if (index !== -1) {
+                await this.updateSingleProduct(index);
+                // 添加小延迟避免请求过于频繁
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        // 更新最后更新时间
+        this.updateLastUpdateTime();
+    }
+
     startAutoUpdate() {
         console.log('⏰ 启动自动更新');
-        // 每30秒更新一次
+
+        // 股票 - 波动大，10分钟更新一次 (10 * 60 * 1000 = 600000ms)
         setInterval(() => {
-            this.updateAllPrices();
-        }, 30000);
+            this.updateStocks();
+        }, 600000);
+
+        // 加密货币 - 波动大，10分钟更新一次
+        setInterval(() => {
+            this.updateCryptos();
+        }, 600000);
+
+        // 基金 - 波动小，30分钟更新一次 (30 * 60 * 1000 = 1800000ms)
+        setInterval(() => {
+            this.updateFunds();
+        }, 1800000);
+
+        console.log('✅ 自动更新计划已设置: 股票/加密货币10分钟 | 基金30分钟');
     }
 }
 
