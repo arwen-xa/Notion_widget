@@ -517,7 +517,8 @@ body {
     .status-info {
         flex-direction: column;
         gap: 2px;
-        text-align: center;
+        align-items: flex-start;
+            text-align: left;
     }
 
     .divider {
