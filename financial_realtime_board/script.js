@@ -407,6 +407,7 @@ class DynamicFinancialWidget {
         }
 
         // 如果名称为空，使用代码作为名称
+        // todo: 如果为空，先尝试调用api，获取其名称，如果无法获取该api，则用代码作为名称
         if (!name) {
             name = code;
         }
@@ -423,6 +424,7 @@ class DynamicFinancialWidget {
     addProduct(productType, productCode, productName) {
         console.log('🎯 添加产品:', productType, productCode, productName);
 
+        // todo：把这个检查放在外层？
         // 检查是否已存在
         const exists = this.products.some(p => p.code === productCode && p.type === productType);
         if (exists) {
@@ -916,6 +918,8 @@ class DynamicFinancialWidget {
 
     // === 新增：闭市判断方法 ===
     shouldUpdateProduct(product) {
+        const nowtime = new Date();
+
         if (!product.dataTime) {
             return true; // 没有数据时间，继续更新
         }
@@ -926,8 +930,11 @@ class DynamicFinancialWidget {
         }
 
         // 检查是否在交易时间
-        const isTrading = marketConfig.isTrading(product.dataTime);
-        console.log(`${product.name} 交易状态:`, isTrading ? '交易中' : '已闭市');
+        const now_isTrading = marketConfig.isTrading(nowtime);
+        const lastdata_isTrading = marketConfig.isTrading(product.dataTime);
+        console.log(`${product.name} 交易状态:`, now_isTrading ? '交易中' : '已闭市');
+
+        const isTrading = now_isTrading || (!now_isTrading && lastdata_isTrading)
 
         return isTrading;
     }
