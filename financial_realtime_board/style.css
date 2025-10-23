@@ -82,6 +82,29 @@ body {
     box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
 }
 
+.add-products-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    /* 减小类型选择框宽度 */
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.add-products-form input {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    background: #fff;
+    transition: all 0.2s ease;
+}
+
+.add-products-form input:focus {
+    border-color: #1890ff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
 .primary-btn {
     background: #1890ff;
     color: white;
@@ -364,6 +387,13 @@ body {
     color: #e0e0e0;
 }
 
+.button-module {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #666;
+}
 /* 加载状态 */
 .updating {
     opacity: 0.6;
@@ -417,6 +447,10 @@ body {
         gap: 4px;
     }
     
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                .add-products-form {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    grid-template-columns: 1fr;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    gap: 4px;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
     .quick-add {
         flex-direction: column;
         align-items: flex-start;
@@ -525,6 +559,12 @@ body {
         display: none;
     }
 
+        .button-module {
+            flex-direction: column;
+            gap: 2px;
+            align-items: flex-start;
+            text-align: left;
+        }
     .update-frequency {
         font-size: 9px;
     }

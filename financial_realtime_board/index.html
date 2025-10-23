@@ -28,6 +28,11 @@
                 <input type="text" id="product-name" placeholder="输入名称 (可选)" />
                 <button id="add-product-btn" class="primary-btn"> + </button>
             </div>
+            <!-- 添加多个产品组合 -->
+            <div class="add-products-form">
+                <input type="text" id="products-info" placeholder="输入产品组合 type1, code1, name1; type2, code2, name2; ..." />
+                <button id="add-products-btn" class="primary-btn"> + 批量添加 </button>
+            </div>
             
             <!-- 快速添加示例 -->
             <div class="quick-add">
@@ -57,7 +62,10 @@
                 <span class="divider">|</span>
                 <span class="update-frequency">更新频率: 股票/加密货币10分钟 | 基金30分钟</span>
             </div>
-            <button id="refresh-all-btn" class="secondary-btn">🔄 刷新全部</button>
+            <div class="button-module">
+                <button id="refresh-all-btn" class="secondary-btn">🔄 刷新全部</button>
+                <button id="delete-all-btn" class="secondary-btn">🗑️ 删除全部</button>
+                </div>
         </div>
     </div>
 

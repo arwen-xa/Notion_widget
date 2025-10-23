@@ -88,6 +88,20 @@ class DynamicFinancialWidget {
         this.updateAllPrices();
     }
 
+    // 新增：请求间隔控制方法
+    async waitForRequestInterval() {
+        const now = Date.now();
+        const timeSinceLastRequest = now - this.lastRequestTime;
+
+        if (timeSinceLastRequest < this.requestInterval) {
+            const waitTime = this.requestInterval - timeSinceLastRequest;
+            console.log(`⏳ 等待 ${waitTime}ms 避免请求过快`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+
+        this.lastRequestTime = Date.now();
+    }
+
     bindEventListeners() {
         // 绑定添加按钮
         const addButton = document.getElementById('add-product-btn');
@@ -106,7 +120,25 @@ class DynamicFinancialWidget {
                 }
             });
         }
-        
+
+        // 绑定添加组合按钮
+        const multiaddButton = document.getElementById('add-products-btn');
+        if (multiaddButton) {
+            multiaddButton.addEventListener('click', () => {
+                this.addCustomProducts();
+            });
+        }
+
+        // 绑定回车键
+        const multicodeInput = document.getElementById('products-info');
+        if (multicodeInput) {
+            multicodeInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.addCustomProducts();
+                }
+            });
+        }
+
         // 绑定刷新全部按钮
         const refreshAllBtn = document.getElementById('refresh-all-btn');
         if (refreshAllBtn) {
@@ -114,7 +146,15 @@ class DynamicFinancialWidget {
                 this.updateAllPrices(true); // true表示跳过闭市判断
             });
         }
-        
+
+        // 绑定删除全部按钮
+        const deleteAllBtn = document.getElementById('delete-all-btn');
+        if (deleteAllBtn) {
+            deleteAllBtn.addEventListener('click', () => {
+                this.removeAllProduct(); // true表示跳过闭市判断
+            });
+        }
+
         console.log('✅ 事件监听器绑定完成');
     }
 
@@ -421,37 +461,195 @@ class DynamicFinancialWidget {
         console.log('✅ 产品添加流程完成');
     }
 
-    addProduct(productType, productCode, productName) {
-        console.log('🎯 添加产品:', productType, productCode, productName);
+    async addCustomProducts() {
+        console.log('🔄 addCustomProducts方法被调用，批量添加产品');
 
-        // todo：把这个检查放在外层？
-        // 检查是否已存在
-        const exists = this.products.some(p => p.code === productCode && p.type === productType);
-        if (exists) {
-            alert('该产品已在关注列表中');
+        const products_info = document.getElementById('products-info')
+        if (!products_info) {
+            console.error('❌ 找不到表单元素')
             return;
         }
 
-        const newProduct = {
-            type: productType,
-            code: productCode,
-            name: productName,
-            displayName: productName || this.getDefaultName(productType, productCode),
-            element: null,
-            lastData: null,        // 最后一次成功数据
-            lastError: null,       // 当前错误状态（null表示没有错误）
-            lastUpdate: null       // 最后一次成功更新时间（null表示从未成功过）
-        };
+        try {
+            // 预处理：移除所有首尾空格，统一处理中英文标点
+            const processedText = products_info.value
+                .replace(/，/g, ',')  // 中文逗号转英文逗号
+                .replace(/；/g, ';')  // 中文分号转英文分号
+                .trim();
 
-        this.products.push(newProduct);
-        this.saveToStorage();
-        this.renderProducts();
-        this.updateProductCount();
-        
-        console.log('✅ 产品添加成功');
+            // 按分号分割产品
+            const productStrings = processedText.split(';').filter(item => item.trim());
 
-        // 立即获取数据
-        this.updateSingleProduct(this.products.length - 1);
+            if (productStrings.length === 0) {
+                alert('没有找到有效的产品信息');
+                return;
+            }
+
+            const products = [];
+            const errors = [];
+            const addedProducts = [];
+
+            productStrings.forEach((productStr, index) => {
+                try {
+                    // 按逗号分割属性，并移除每个属性的首尾空格
+                    const attributes = productStr.split(',').map(attr => attr.trim());
+
+                    // 验证属性数量
+                    if (attributes.length < 2 || attributes.length > 3) {
+                        errors.push(`第${index + 1}个产品: 属性数量错误 (需要2-3个属性)`);
+                        return;
+                    }
+
+                    const type = attributes[0];
+                    const code = attributes[1];
+                    let name = attributes[2] || ''; // 第三项可能为空
+
+                    // 进一步处理name：如果只有空格或为空，则设为空字符串
+                    name = name.trim();
+                    if (name === '') {
+                        name = ''; // 使用空字符串，后续会用代码作为默认名称
+                    }
+
+                    // 验证必要属性
+                    if (!type) {
+                        errors.push(`第${index + 1}个产品: 类型不能为空`);
+                        return;
+                    }
+
+                    if (!code) {
+                        errors.push(`第${index + 1}个产品: 代码不能为空`);
+                        return;
+                    }
+
+                    // 验证类型是否支持
+                    const validTypes = ['stock', 'fund', 'crypto'];
+                    if (!validTypes.includes(type)) {
+                        errors.push(`第${index + 1}个产品: 不支持的类型 "${type}" (支持: ${validTypes.join(', ')})`);
+                        return;
+                    }
+
+                    products.push({
+                        type: type,
+                        code: code,
+                        name: name
+                    });
+
+                    console.log(`✅ 解析产品 ${index + 1}:`, { type, code, name: name || '(空)' });
+
+                } catch (error) {
+                    errors.push(`第${index + 1}个产品: 解析失败 - ${error.message}`);
+                }
+            });
+
+            console.log('解析到的产品:', products);
+            console.log('解析错误:', errors);
+
+            if (products.length === 0 && errors.length > 0) {
+                alert('所有产品解析失败:\n' + errors.join('\n'));
+                return;
+            }
+
+            // 第二步：逐个添加产品并等待完成
+            let successCount = 0;
+            for (const product of products) {
+                try {
+                    console.log(`🔄 正在添加产品: ${product.type} ${product.code}`);
+
+                    // 等待每个产品添加和数据获取完成
+                    await this.addProduct(product.type, product.code, product.name);
+
+                    successCount++;
+                    addedProducts.push(`${product.type} ${product.code}`);
+
+                    // 可以添加更短的间隔，因为addProduct已经等待数据获取了
+                    await new Promise(resolve => setTimeout(resolve, 200));
+
+                } catch (error) {
+                    errors.push(`${product.type} ${product.code} 添加失败: ${error.message}`);
+                }
+            }
+
+            // 显示结果
+            let message = `成功添加 ${successCount} 个产品`;
+            if (addedProducts.length > 0) {
+                message += `\n\n已添加产品:\n${addedProducts.slice(0, 10).join('\n')}`;
+                if (addedProducts.length > 10) {
+                    message += `\n... 还有 ${addedProducts.length - 10} 个产品`;
+                }
+            }
+            if (errors.length > 0) {
+                message += `\n\n失败/错误 (${errors.length} 个):\n` + errors.slice(0, 5).join('\n');
+                if (errors.length > 5) {
+                    message += `\n... 还有 ${errors.length - 5} 个错误`;
+                }
+            }
+
+            alert(message);
+
+        } catch (error) {
+            console.error('批量添加解析失败:', error);
+            alert('输入格式解析失败: ' + error.message);
+        }
+
+        // 清空表单
+        products_info.value = '';
+
+        console.log('✅ 产品批量添加流程完成');
+
+    }
+
+    // 修改 addProduct 方法，返回 Promise
+    addProduct(productType, productCode, productName) {
+        return new Promise((resolve, reject) => {
+            console.log('🎯 添加产品:', productType, productCode, productName);
+
+            let finalCode = productCode;
+
+            // 股票类型进行代码转换
+            if (productType === 'stock') {
+                finalCode = this.convertStockCode(productCode);
+                console.log(`代码转换: ${productCode} -> ${finalCode}`);
+            }
+
+            // 检查是否已存在
+            const exists = this.products.some(p => p.code === finalCode && p.type === productType);
+            if (exists) {
+                reject(new Error('该产品已在关注列表中'));
+                return;
+            }
+
+            const newProduct = {
+                type: productType,
+                code: finalCode,
+                name: productName,
+                displayName: productName || this.getDefaultName(productType, finalCode),
+                element: null,
+                lastData: null,
+                lastError: null,
+                lastUpdate: null,
+                dataTime: null
+            };
+
+            this.products.push(newProduct);
+            this.saveToStorage();
+            this.renderProducts();
+            this.updateProductCount();
+
+            console.log('✅ 产品添加成功');
+
+            // 立即获取数据
+            this.updateSingleProduct(this.products.length - 1)
+                .then((data) => {
+                    // 如果 updateSingleProduct 成功完成（包括闭市静默处理）
+                    resolve(newProduct);
+                })
+                .catch((error) => {
+                    // 只有真正的网络错误等才会进入这里
+                    console.warn(`产品 ${productCode} 添加成功但数据获取失败:`, error);
+                    // 产品添加成功，数据获取失败不算错误，仍然 resolve
+                    resolve(newProduct);
+                });
+        });
     }
 
     getDefaultName(type, code) {
@@ -478,6 +676,151 @@ class DynamicFinancialWidget {
         return defaultNames[type]?.[code] || code;
     }
 
+    // 在 DynamicFinancialWidget 类中添加代码转换方法
+    convertStockCode(inputCode, type = 'stock') {
+        if (type !== 'stock') {
+            return inputCode; // 非股票类型直接返回原代码
+        }
+
+        const code = inputCode.trim().toUpperCase();
+
+        // 完整的指数代码映射表
+        const indexCodeMap = {
+            // 上证指数系列
+            '000001.SH': 'sh000001', '1A0001.SH': 'sh000001', 'SH000001': 'sh000001',
+            '000002.SH': 'sh000002', '1A0002.SH': 'sh000002',
+            '000003.SH': 'sh000003', '1A0003.SH': 'sh000003',
+            '000008.SH': 'sh000008', '1A0008.SH': 'sh000008',
+            '000009.SH': 'sh000009', '1A0009.SH': 'sh000009',
+            '000010.SH': 'sh000010', '1A0010.SH': 'sh000010',
+            '000011.SH': 'sh000011', '1A0011.SH': 'sh000011',
+            '000012.SH': 'sh000012', '1A0012.SH': 'sh000012',
+            '000016.SH': 'sh000016', '1A0016.SH': 'sh000016',
+            '000017.SH': 'sh000017', '1A0017.SH': 'sh000017',
+            '000030.SH': 'sh000030', '1A0030.SH': 'sh000030',
+            '000085.SH': 'sh000085', '1A0085.SH': 'sh000085',
+            '000300.SH': 'sh000300', '1A0300.SH': 'sh000300',
+            '000905.SH': 'sh000905', '1A0905.SH': 'sh000905',
+
+            // 深证指数系列
+            '399001.SZ': 'sz399001', '2A01.SZ': 'sz399001', 'SZ399001': 'sz399001',
+            '399002.SZ': 'sz399002', '2A02.SZ': 'sz399002',
+            '399003.SZ': 'sz399003', '2A03.SZ': 'sz399003',
+            '399004.SZ': 'sz399004', '2A04.SZ': 'sz399004',
+            '399005.SZ': 'sz399005', '2A05.SZ': 'sz399005',
+            '399006.SZ': 'sz399006', '2A06.SZ': 'sz399006',
+            '399007.SZ': 'sz399007', '2A07.SZ': 'sz399007',
+            '399008.SZ': 'sz399008', '2A08.SZ': 'sz399008',
+            '399009.SZ': 'sz399009', '2A09.SZ': 'sz399009',
+            '399010.SZ': 'sz399010', '2A10.SZ': 'sz399010',
+            '399011.SZ': 'sz399011', '2A11.SZ': 'sz399011',
+            '399012.SZ': 'sz399012', '2A12.SZ': 'sz399012',
+            '399013.SZ': 'sz399013', '2A13.SZ': 'sz399013',
+            '399015.SZ': 'sz399015', '2A15.SZ': 'sz399015',
+            '399016.SZ': 'sz399016', '2A16.SZ': 'sz399016',
+            '399017.SZ': 'sz399017', '2A17.SZ': 'sz399017',
+            '399018.SZ': 'sz399018', '2A18.SZ': 'sz399018',
+            '399100.SZ': 'sz399100', '2A19.SZ': 'sz399100',
+            '399101.SZ': 'sz399101', '2A20.SZ': 'sz399101',
+            '399106.SZ': 'sz399106', '2A21.SZ': 'sz399106',
+            '399107.SZ': 'sz399107', '2A22.SZ': 'sz399107',
+            '399108.SZ': 'sz399108', '2A23.SZ': 'sz399108',
+            '399231.SZ': 'sz399231', '2A24.SZ': 'sz399231',
+            '399232.SZ': 'sz399232', '2A25.SZ': 'sz399232',
+
+            // 行业指数
+            '399317.SZ': 'sz399317', '399396.SZ': 'sz399396',
+            '399437.SZ': 'sz399437', '399967.SZ': 'sz399967',
+            '399986.SZ': 'sz399986', '399393.SZ': 'sz399393',
+            '399995.SZ': 'sz399995', '399417.SZ': 'sz399417',
+            '399998.SZ': 'sz399998', '399440.SZ': 'sz399440',
+            '399441.SZ': 'sz399441', '399442.SZ': 'sz399442',
+            '399806.SZ': 'sz399806', '399807.SZ': 'sz399807',
+            '399808.SZ': 'sz399808', '399809.SZ': 'sz399809',
+            '399810.SZ': 'sz399810', '399811.SZ': 'sz399811',
+            '399812.SZ': 'sz399812', '399813.SZ': 'sz399813',
+        };
+
+        // 首先检查是否是已知的指数代码
+        if (indexCodeMap[code]) {
+            console.log(`指数代码转换: ${code} -> ${indexCodeMap[code]}`);
+            return indexCodeMap[code];
+        }
+
+        // A股代码转换
+        if (code.endsWith('.SH') || code.endsWith('.SZ')) {
+            // 标准交易所代码格式 -> 腾讯财经格式
+            const exchange = code.endsWith('.SH') ? 'sh' : 'sz';
+            const pureCode = code.replace(/\.(SH|SZ)$/, '');
+            if (code.startsWith('1B') || code.startsWith('1b')) {
+                const pureCode2 = code.replace(/^(1B|1b)/, '00').replace(/\.(SH|SZ)$/, '');
+                // console.log(`startsWith('1B'): ${code} -> ${pureCode2}`);
+                return exchange + pureCode2;
+            } else {
+                return exchange + pureCode;
+            }
+
+        }
+
+        if (code.endsWith('.SS') || code.endsWith('.SZ')) {
+            // 另一种交易所代码格式
+            const exchange = code.endsWith('.SS') ? 'sh' : 'sz';
+            const pureCode = code.replace(/\.(SS|SZ)$/, '');
+            return exchange + pureCode;
+        }
+
+        // 北证
+        if (code.endsWith('.BJ') || code.endsWith('.bj')) {
+            // 另一种交易所代码格式
+            const exchange = 'bj';
+            const pureCode = code.replace(/\.(BJ|bj)$/, '');
+            return exchange + pureCode;
+        }
+
+        // 美股代码转换
+        if (code.endsWith('.O') || code.endsWith('.N') || code.endsWith('.A') || code.endsWith('.B') || code.endsWith('.USI')) {
+            // 美股格式: TSLA.O, AAPL.O, BABA.N 等
+            // 转换为新浪财经美股格式: gb_tsla
+            // 转换为腾讯财经格式：usTSLA
+            const pureCode = code.replace(/\.(O|N|A|B|USI)$/, '');
+            return `us${pureCode}`;
+        }
+
+        // 港股代码转换
+        if (code.endsWith('.HK')) {
+            // 港股格式: 00700.HK -> rt_hk00700
+            // 腾讯财经格式：hk00700
+            const pureCode = code.replace(/\.HK$/, '');
+            return `hk${pureCode}`;
+        }
+
+        if (code.startsWith('HK')) {
+            // 港股另一种格式: HK00700 -> rt_hk00700
+            const pureCode = code.replace(/^HK/, '');
+            return `hk${pureCode}`;
+        }
+
+        // 纯数字代码自动判断
+        if (/^\d{6}$/.test(code)) {
+            // 6位数字代码，根据开头判断市场
+            if (code.startsWith('6') || code.startsWith('5') || code.startsWith('9')) {
+                return 'sh' + code; // 上证
+            } else if (code.startsWith('0') || code.startsWith('2') || code.startsWith('3')) {
+                return 'sz' + code; // 深证
+            }
+        }
+
+        // 已经是腾讯财经格式的直接返回
+        if (code.startsWith('sh') || code.startsWith('sz') ||
+            code.startsWith('us') || code.startsWith('hk')) {
+            return code;
+        }
+
+        // 无法识别的格式原样返回
+        console.warn(`无法识别的股票代码格式: ${inputCode}, 原样返回`);
+        return inputCode;
+    }
+
     removeProduct(index) {
         console.log('🗑️ 移除产品:', index);
         if (confirm(`确定要移除 ${this.products[index].displayName || this.products[index].name} 吗？`)) {
@@ -486,6 +829,24 @@ class DynamicFinancialWidget {
             this.renderProducts();
             this.updateProductCount();
         }
+    }
+
+    removeAllProduct() {
+        if (this.products.length === 0) {
+            alert('当前没有产品可删除');
+            return;
+        }
+        console.log('🗑️ 移除全部产品:');
+        if (confirm(`确定要移除全部产品吗？此操作不可逆`)) {
+            this.products = [];
+            this.saveToStorage();
+            this.renderProducts();
+            this.updateProductCount();
+
+            console.log('🗑️ 已删除全部产品');
+            alert(`已成功删除全部产品`);
+        }
+
     }
 
     updateProductCount() {
@@ -741,52 +1102,60 @@ class DynamicFinancialWidget {
     }
 
     // 在 updateSingleProduct 方法中修改错误处理逻辑
+    // 修改 updateSingleProduct 方法返回 Promise
     async updateSingleProduct(index, skipMarketCheck = false) {
-        const product = this.products[index];
-        if (!product) return;
-
-        if (!skipMarketCheck && !this.shouldUpdateProduct(product)) {
-            console.log(`⏸️ ${product.name} 已闭市，跳过自动更新`);
-            return;
-        }
-
-        try {
-            this.showProductLoading(index, true);
-            
-            const data = await this.fetchPrice(product.type, product.code);
-            console.log(`获取到 ${product.name} 的数据:`, data);
-            
-            // 保存成功的数据，并更新时间
-            product.lastData = data;
-            product.lastUpdate = Date.now();
-            product.dataTime = data.dataTime; // 新增：数据对应的时间
-            product.lastError = null; // 清除错误状态
-
-            if (data.productName && !product.displayName) {
-                product.displayName = data.productName;
+        return new Promise(async (resolve, reject) => {
+            const product = this.products[index];
+            if (!product) {
+                reject(new Error('产品不存在'));
+                return;
             }
-            
-            this.saveToStorage();
-            this.renderProducts();
-            
-            this.updateLastUpdateTime();
-            
-        } catch (error) {
-            console.error(`更新 ${product.name} 失败:`, error);
 
-            // 关键修改：只保存错误信息，不修改已有的成功数据
-            // 如果之前有成功数据，就保留；如果没有，就保持null
-            product.lastError = error.message || '获取失败';
+            // 手动更新时跳过闭市判断，自动更新时检查
+            if (!skipMarketCheck && !this.shouldUpdateProduct(product)) {
+                console.log(`⏸️ ${product.name} 已闭市，跳过自动更新`);
+                // 直接 resolve，不返回任何内容
+                resolve();
+                return;
+            }
 
-            // 重要：不修改 lastData 和 lastUpdate，保留上次成功的数据
-            // 只有在从未成功过的情况下，才保持null状态
+            try {
+                this.showProductLoading(index, true);
 
-            this.saveToStorage();
-            this.renderProducts();
+                await this.waitForRequestInterval();
 
-        } finally {
-            this.showProductLoading(index, false);
-        }
+                const data = await this.fetchPrice(product.type, product.code);
+                console.log(`获取到 ${product.name} 的数据:`, data);
+
+                product.lastData = data;
+                product.lastUpdate = Date.now();
+                product.dataTime = data.dataTime;
+                product.lastError = null;
+
+                if (data.productName && !product.displayName) {
+                    product.displayName = data.productName;
+                }
+
+                this.saveToStorage();
+                this.renderProducts();
+                this.updateLastUpdateTime();
+
+                // 成功时返回数据
+                resolve(data);
+
+            } catch (error) {
+                console.error(`更新 ${product.name} 失败:`, error);
+                product.lastError = error.message || '获取失败';
+                this.saveToStorage();
+                this.renderProducts();
+
+                // 真正的错误使用 reject
+                reject(error);
+
+            } finally {
+                this.showProductLoading(index, false);
+            }
+        });
     }
 
     showProductLoading(index, isLoading) {
@@ -841,7 +1210,13 @@ class DynamicFinancialWidget {
         }
 
         for (let i = 0; i < this.products.length; i++) {
-            await this.updateSingleProduct(i, skipMarketCheck);
+            try {
+                await this.updateSingleProduct(i, skipMarketCheck);
+                // 即使闭市跳过也会正常继续
+            } catch (error) {
+                // 只有真正的错误才会进入这里
+                console.error(`更新产品 ${i} 失败:`, error);
+            }
             // 添加小延迟避免请求过于频繁
             await new Promise(resolve => setTimeout(resolve, 500));
         }
