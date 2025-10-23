@@ -15,33 +15,39 @@
         
         <!-- 添加产品控制面板 -->
         <div class="control-panel">
-            <div class="panel-header">
-                <h3>添加关注产品</h3>
+            <!-- 面板头部 - 可点击展开/折叠▶ -->
+            <div class="panel-header" id="control-panel-header">
+                <h3>添加...</h3>
+                <button class="toggle-btn" id="toggle-panel-btn">展开</button>
             </div>
-            <div class="add-product-form">
-                <select id="product-type">
-                    <option value="stock">股票/指数</option>
-                    <option value="fund">基金</option>
-                    <option value="crypto">加密货币</option>
-                </select>
-                <input type="text" id="product-code" placeholder="输入代码 (如: sh000001)" />
-                <input type="text" id="product-name" placeholder="输入名称 (可选)" />
-                <button id="add-product-btn" class="primary-btn"> + </button>
-            </div>
-            <!-- 添加多个产品组合 -->
-            <div class="add-products-form">
-                <input type="text" id="products-info" placeholder="输入产品组合 type1, code1, name1; type2, code2, name2; ..." />
-                <button id="add-products-btn" class="primary-btn"> + 批量添加 </button>
-            </div>
-            
-            <!-- 快速添加示例 -->
-            <div class="quick-add">
-                <span class="quick-add-label">快速添加:</span>
-                <div class="quick-add-buttons">
-                    <button class="quick-btn" onclick="quickAdd('stock', 'sh000001', '上证指数')">上证指数</button>
-                    <button class="quick-btn" onclick="quickAdd('stock', 'sz399001', '深证成指')">深证成指</button>
-                    <button class="quick-btn" onclick="quickAdd('fund', '161725', '招商白酒')">招商白酒</button>
-                    <button class="quick-btn" onclick="quickAdd('crypto', 'BTCUSDT', '比特币')">比特币</button>
+            <!-- 面板内容 - 默认隐藏 -->
+            <div class="panel-content" id="control-panel-content" style="display: none;">
+                <!-- 添加单个产品 -->
+                <div class="add-product-form">
+                    <select id="product-type">
+                        <option value="stock">股票/指数</option>
+                        <option value="fund">基金</option>
+                        <option value="crypto">加密货币</option>
+                    </select>
+                    <input type="text" id="product-code" placeholder="输入代码 (如: sh000001)" />
+                    <input type="text" id="product-name" placeholder="输入名称 (可选)" />
+                    <button id="add-product-btn" class="primary-btn"> + </button>
+                </div>
+                <!-- 添加多个产品组合 -->
+                <div class="add-products-form">
+                    <input type="text" id="products-info" placeholder="输入产品组合 type1, code1, name1; type2, code2, name2; ..." />
+                    <button id="add-products-btn" class="primary-btn"> + 批量添加 </button>
+                </div>
+                
+                <!-- 快速添加示例 -->
+                <div class="quick-add">
+                    <span class="quick-add-label">快速添加:</span>
+                    <div class="quick-add-buttons">
+                        <button class="quick-btn" onclick="quickAdd('stock', 'sh000001', '上证指数')">上证指数</button>
+                        <button class="quick-btn" onclick="quickAdd('stock', 'sz399001', '深证成指')">深证成指</button>
+                        <button class="quick-btn" onclick="quickAdd('fund', '161725', '招商白酒')">招商白酒</button>
+                        <button class="quick-btn" onclick="quickAdd('crypto', 'BTCUSDT', '比特币')">比特币</button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -15,6 +15,7 @@ class DynamicFinancialWidget {
         this.lastUpdate = null;
         this.lastRequestTime = 0;
         this.requestInterval = 1000;
+        this.isPanelExpanded = false;
 
         // 市场交易时间配置（北京时间）
         this.marketHours = {
@@ -155,7 +156,72 @@ class DynamicFinancialWidget {
             });
         }
 
+        // 新增：面板展开/折叠事件
+        this.bindPanelToggleEvents();
+
         console.log('✅ 事件监听器绑定完成');
+    }
+
+    // 新增：绑定面板切换事件
+    bindPanelToggleEvents() {
+        const panelHeader = document.getElementById('control-panel-header');
+        const toggleBtn = document.getElementById('toggle-panel-btn');
+        const panelContent = document.getElementById('control-panel-content');
+
+        if (panelHeader && toggleBtn && panelContent) {
+            // 头部点击事件
+            panelHeader.addEventListener('click', (e) => {
+                // 防止按钮点击触发两次
+                if (e.target !== toggleBtn) {
+                    this.togglePanel();
+                }
+            });
+
+            // 按钮点击事件
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                this.togglePanel();
+            });
+        }
+    }
+
+    // 新增：切换面板展开/折叠
+    togglePanel() {
+        const panelContent = document.getElementById('control-panel-content');
+        const toggleBtn = document.getElementById('toggle-panel-btn');
+
+        if (!panelContent || !toggleBtn) return;
+
+        this.isPanelExpanded = !this.isPanelExpanded;
+
+        if (this.isPanelExpanded) {
+            // 展开面板
+            panelContent.style.display = 'block';
+            // 添加动画类
+            panelContent.classList.add('show');
+            toggleBtn.textContent = '折叠'; //折叠
+            console.log('📂 展开添加面板');
+        } else {
+            // 折叠面板
+            panelContent.style.display = 'none';
+            panelContent.classList.remove('show');
+            toggleBtn.textContent = '展开'; // 展开
+            console.log('📁 折叠添加面板');
+        }
+    }
+
+    // 新增：程序化展开面板（在需要时调用）
+    expandPanel() {
+        if (!this.isPanelExpanded) {
+            this.togglePanel();
+        }
+    }
+
+    // 新增：程序化折叠面板
+    collapsePanel() {
+        if (this.isPanelExpanded) {
+            this.togglePanel();
+        }
     }
 
     loadFromStorage() {
@@ -205,7 +271,7 @@ class DynamicFinancialWidget {
         
         // 股票/指数
         if (categorizedProducts.stock.length > 0) {
-            html += this.renderCategory('stock', '🔄 股票指数', categorizedProducts.stock);
+            html += this.renderCategory('stock', '💹 股票指数', categorizedProducts.stock);
         }
         
         // 基金
