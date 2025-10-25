@@ -21,33 +21,60 @@ class DynamicFinancialWidget {
         this.marketHours = {
             // A股交易时间
             stock: {
-                isTrading: function (dataTime) {
+                isTrading: function (dataTime, code) {
                     const time = new Date(dataTime);
                     const day = time.getDay(); // 0=周日, 1=周一, ..., 6=周六
                     const hour = time.getHours();
                     const minute = time.getMinutes();
+                    const second = time.getSeconds();
 
                     // 周末休市
                     if (day === 0 || day === 6) return false;
 
-                    // 上午交易时间: 9:30-11:30
-                    const isMorning = (hour === 9 && minute >= 30) ||
-                        (hour === 10) ||
-                        (hour === 11 && minute <= 30);
+                    if (code.startsWith('hk')) {
+                        // 上午交易时间: 香港 9:30-12:00
+                        const isMorning = (hour === 9 && minute >= 30) ||
+                            (hour === 10) || (hour === 11) ||
+                            (hour === 12 && minute === 0);
 
-                    // 下午交易时间: 13:00-15:00
-                    const isAfternoon = (hour === 13) ||
-                        (hour === 14) ||
-                        (hour === 15 && minute === 0);
+                        // 下午交易时间: 香港 13:00-16:00
+                        const isAfternoon = (hour === 13) ||
+                            (hour === 14) || (hour === 15) ||
+                            (hour === 16 && minute === 0 && second === 0);
 
-                    return isMorning || isAfternoon;
+                        return isMorning || isAfternoon;
+                    } else if (code.startsWith('us')) {
+                        // 上午交易时间: 纽约 9:30-16:00
+                        const isMorning = (hour === 9 && minute >= 30) ||
+                            (hour >= 10 && hour <=15) ||
+                            (hour === 16 && minute === 0 && second === 0);
+                        
+                        return isMorning;
+
+                    } else if (code.startsWith('sh') || code.startsWith('sz')) {
+                        // 上午交易时间: 大陆 9:30-11:30
+                        const isMorning = (hour === 9 && minute >= 30) ||
+                            (hour === 10) ||
+                            (hour === 11 && minute <= 30);
+
+                        // 下午交易时间: 13:00-15:00
+                        const isAfternoon = (hour === 13) ||
+                            (hour === 14) ||
+                            (hour === 15 && minute === 0 && second === 0);
+
+                        return isMorning || isAfternoon;
+                    } else {
+                        // 若未匹配到交易市场，默认交易中
+                        return true;
+                    }
+                    
                 },
                 closeTime: '15:00:00'
             },
 
             // 基金交易时间（净值估算时间）
             fund: {
-                isTrading: function (dataTime) {
+                isTrading: function (dataTime, code) {
                     const time = new Date(dataTime);
                     const day = time.getDay();
                     const totalMinutes = time.getHours() * 60 + time.getMinutes();
@@ -67,7 +94,7 @@ class DynamicFinancialWidget {
 
             // 加密货币24小时交易
             crypto: {
-                isTrading: function (dataTime) {
+                isTrading: function (dataTime, code) {
                     return true; // 24小时交易
                 },
                 closeTime: null
@@ -973,8 +1000,10 @@ class DynamicFinancialWidget {
                                         // 尝试从数据中解析时间（腾讯财经数据可能包含时间信息）
                                         if (items.length > 30 && items[30]) {
                                             // 腾讯财经时间格式: 20251020161412
+                                            console.log(`${code} return time:`,items[30],';length:',items[30].length)
                                             const timeStr = items[30];
                                             if (timeStr.length === 14) {
+                                                // 大陆 20251020161412
                                                 const year = timeStr.substring(0, 4);
                                                 const month = timeStr.substring(4, 6);
                                                 const day = timeStr.substring(6, 8);
@@ -982,7 +1011,12 @@ class DynamicFinancialWidget {
                                                 const minute = timeStr.substring(10, 12);
                                                 const second = timeStr.substring(12, 14);
                                                 dataTime = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`);
+                                            } else if (timeStr.length === 19) {
+                                                // 港股 2025/10/24 18:31:15, 美股 2025-10-24 16:00:02
+                                                dataTime = new Date(timeStr);
+                                                console.log('new date:', dataTime.toLocaleString());
                                             }
+                                            
                                         }
 
                                         console.log(`✅ ${code} 数据获取成功:`, {
@@ -1372,8 +1406,19 @@ class DynamicFinancialWidget {
 
     // === 新增：闭市判断方法 ===
     shouldUpdateProduct(product) {
-        const nowtime = new Date();
-
+        let nowtime = new Date();
+        if (product.code.startsWith('us')) {
+            nowtime = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+        } 
+        console.log('now time:', nowtime);
+        // for debug
+        const time2 = new Date(nowtime);
+        const day = time2.getDay(); // 0=周日, 1=周一, ..., 6=周六
+        const hour = time2.getHours();
+        const minute = time2.getMinutes();
+        const second = time2.getSeconds();
+        console.log('用来判断是否开市的时间:', day,', ',hour,',',minute);
+        
         if (!product.dataTime) {
             return true; // 没有数据时间，继续更新
         }
@@ -1384,9 +1429,9 @@ class DynamicFinancialWidget {
         }
 
         // 检查是否在交易时间
-        const now_isTrading = marketConfig.isTrading(nowtime);
-        const lastdata_isTrading = marketConfig.isTrading(product.dataTime);
-        console.log(`${product.name} 交易状态:`, now_isTrading ? '交易中' : '已闭市');
+        const now_isTrading = marketConfig.isTrading(nowtime, product.code);
+        const lastdata_isTrading = marketConfig.isTrading(product.dataTime, product.code);
+        console.log(`${product.code} 交易状态:`, now_isTrading ? '交易中' : '已闭市');
 
         const isTrading = now_isTrading || (!now_isTrading && lastdata_isTrading)
 
