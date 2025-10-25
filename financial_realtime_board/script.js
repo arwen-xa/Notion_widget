@@ -514,9 +514,9 @@ class DynamicFinancialWidget {
 
         // 如果名称为空，使用代码作为名称
         // todo: 如果为空，先尝试调用api，获取其名称，如果无法获取该api，则用代码作为名称
-        if (!name) {
-            name = code;
-        }
+        // if (!name) {
+        //     name = code;
+        // }
 
         this.addProduct(selectedType, code, name);
 
@@ -695,11 +695,13 @@ class DynamicFinancialWidget {
                 lastUpdate: null,
                 dataTime: null
             };
+            console.log('DEBUG: displayName: ', newProduct.displayName);
+            console.log('DEBUG: name: ', newProduct.name);
 
             this.products.push(newProduct);
             this.saveToStorage();
-            this.renderProducts();
-            this.updateProductCount();
+            // this.renderProducts();
+            // this.updateProductCount();
 
             console.log('✅ 产品添加成功');
 
@@ -715,6 +717,8 @@ class DynamicFinancialWidget {
                     // 产品添加成功，数据获取失败不算错误，仍然 resolve
                     resolve(newProduct);
                 });
+            // this.renderProducts();
+            this.updateProductCount();
         });
     }
 
@@ -739,7 +743,7 @@ class DynamicFinancialWidget {
             }
         };
 
-        return defaultNames[type]?.[code] || code;
+        return defaultNames[type]?.[code] || '';
     }
 
     // 在 DynamicFinancialWidget 类中添加代码转换方法
@@ -986,6 +990,7 @@ class DynamicFinancialWidget {
                                             price: currentPrice,
                                             dataTime: dataTime.toLocaleString()
                                         });
+                                        console.log('productname: items[1]:', items[1], 'code: ', `股票${code}`, '||: ', items[1] || `股票${code}`)
 
                                         resolve({
                                             price: parseFloat(currentPrice.toFixed(2)),
@@ -1198,8 +1203,16 @@ class DynamicFinancialWidget {
                 product.dataTime = data.dataTime;
                 product.lastError = null;
 
-                if (data.productName && !product.displayName) {
+                const emptystr = ''
+                console.log(`test for emptystr:`, emptystr);
+                console.log(`productname:`, data.productName);
+                console.log(`displayName:`, product.displayName);
+                console.log(`!displayName:`, product.displayName === '');
+
+                if (data.productName && product.displayName === '') {
+                    console.log(`productname:`, data.productName);
                     product.displayName = data.productName;
+                    console.log(`displayName:`, data.displayName);
                 }
 
                 this.saveToStorage();
