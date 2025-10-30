@@ -1156,12 +1156,10 @@ class DynamicFinancialWidget {
 
     removeProduct(index) {
         console.log('🗑️ 移除产品:', index);
-        if (confirm(`确定要移除 ${this.products[index].displayName || this.products[index].name} 吗？`)) {
-            this.products.splice(index, 1);
-            this.saveToStorage();
-            this.renderProducts();
-            this.updateProductCount();
-        }
+        this.products.splice(index, 1);
+        this.saveToStorage();
+        this.renderProducts();
+        this.updateProductCount();
     }
 
     removeAllProduct() {
@@ -1170,15 +1168,12 @@ class DynamicFinancialWidget {
             return;
         }
         console.log('🗑️ 移除全部产品:');
-        if (confirm(`确定要移除全部产品吗？此操作不可逆`)) {
-            this.products = [];
-            this.saveToStorage();
-            this.renderProducts();
-            this.updateProductCount();
-
-            console.log('🗑️ 已删除全部产品');
-            alert(`已成功删除全部产品`);
-        }
+        this.products = [];
+        this.saveToStorage();
+        this.renderProducts();
+        this.updateProductCount();
+        console.log('🗑️ 已删除全部产品');
+        alert(`已成功删除全部产品`);
 
     }
 
