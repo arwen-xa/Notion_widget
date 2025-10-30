@@ -801,3 +801,145 @@ body {
     background-color: white !important;
     border: 1px solid #999 !important;
 }
+/* === 新增：排序功能样式 === */
+
+/* 可排序表头 */
+.table-header-cell.sortable {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    justify-content: center;
+    /* 新增：确保居中 */
+}
+
+.table-header-cell.sortable:hover {
+    color: #1890ff;
+}
+
+/* 名称表头特殊样式 - 同一行布局 */
+.name-header-cell {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    /* 修改：改为居中 */
+    padding: 2px 1px;
+    text-align: center;
+    /* 新增：文本居中 */
+}
+
+.name-header-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    /* 新增：内容居中 */
+}
+
+.name-sortable,
+.code-sortable {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    cursor: pointer;
+    /* 新增：明确设置手形光标 */
+}
+
+.name-sortable:hover,
+.code-sortable:hover {
+    background: #e6f7ff;
+}
+
+/* 排序指示器通用样式 */
+.sort-indicator {
+    font-size: 8px;
+    line-height: 1;
+    transition: all 0.2s ease;
+    display: inline-block;
+    width: 8px;
+    text-align: center;
+    margin-left: 1px;
+}
+
+/* 默认排序指示器（灰色上三角） */
+.sort-indicator.default {
+    color: #ccc;
+    opacity: 0.7;
+}
+
+/* 升序指示器（蓝色实心上三角） */
+.sort-indicator.asc {
+    color: #1890ff;
+    font-weight: bold;
+}
+
+/* 降序指示器（蓝色实心下三角） */
+.sort-indicator.desc {
+    color: #1890ff;
+    font-weight: bold;
+}
+
+/* 当前排序列的视觉反馈 */
+.sortable.active {
+    color: #1890ff;
+    font-weight: 600;
+}
+
+/* 响应式设计调整 */
+@media (max-width: 600px) {
+    .name-header-content {
+        gap: 4px;
+    }
+
+    .name-sortable,
+    .code-sortable {
+        font-size: 10px;
+        padding: 1px 3px;
+    }
+
+    .sort-indicator {
+        font-size: 7px;
+        width: 7px;
+    }
+}
+
+@media (max-width: 480px) {
+    .name-header-content {
+        flex-direction: column;
+        gap: 1px;
+        align-items: center;
+        /* 修改：改为居中 */
+    }
+
+    .name-sortable,
+    .code-sortable {
+        font-size: 9px;
+        padding: 1px 2px;
+    }
+
+    .sort-indicator {
+        font-size: 6px;
+        width: 6px;
+    }
+}
+
+@media (max-width: 400px) {
+    .name-header-content {
+        gap: 0;
+    }
+
+    .name-sortable,
+    .code-sortable {
+        font-size: 8px;
+        padding: 0 2px;
+    }
+}

@@ -16,6 +16,7 @@ class DynamicFinancialWidget {
         this.lastRequestTime = 0;
         this.requestInterval = 1000;
         this.isPanelExpanded = false;
+        this.sortState = this.loadSortState();
 
         // 市场交易时间配置（北京时间）
         this.marketHours = {
@@ -186,6 +187,9 @@ class DynamicFinancialWidget {
         // 新增：面板展开/折叠事件
         this.bindPanelToggleEvents();
 
+        // 新增：绑定排序事件
+        this.bindSortEvents();
+
         console.log('✅ 事件监听器绑定完成');
     }
 
@@ -210,6 +214,20 @@ class DynamicFinancialWidget {
                 this.togglePanel();
             });
         }
+    }
+
+    // 新增：绑定排序事件
+    bindSortEvents() {
+        // 使用事件委托处理表头点击
+        document.addEventListener('click', (e) => {
+            const sortableElement = e.target.closest('.sortable');
+            if (sortableElement) {
+                const category = sortableElement.dataset.category;
+                const field = sortableElement.dataset.field;
+
+                this.handleSort(category, field);
+            }
+        });
     }
 
     // 新增：切换面板展开/折叠
@@ -270,6 +288,115 @@ class DynamicFinancialWidget {
         } catch (error) {
             console.error('❌ 保存到存储失败:', error);
         }
+    }
+
+    // 新增：加载排序状态
+    loadSortState() {
+        try {
+            const saved = localStorage.getItem('financial-widget-sort-state');
+            return saved ? JSON.parse(saved) : {
+                stock: { field: null, direction: null },
+                fund: { field: null, direction: null },
+                crypto: { field: null, direction: null }
+            };
+        } catch (error) {
+            console.error('❌ 加载排序状态失败:', error);
+            return {
+                stock: { field: null, direction: null },
+                fund: { field: null, direction: null },
+                crypto: { field: null, direction: null }
+            };
+        }
+    }
+
+    // 新增：保存排序状态
+    saveSortState() {
+        try {
+            localStorage.setItem('financial-widget-sort-state', JSON.stringify(this.sortState));
+        } catch (error) {
+            console.error('❌ 保存排序状态失败:', error);
+        }
+    }
+
+    // 新增：排序方法
+    sortProducts(category, field, direction) {
+        if (!direction) {
+            // 不排序，恢复原始顺序（按添加顺序）
+            return [...this.products.filter(p => p.type === category)];
+        }
+
+        const products = this.products.filter(p => p.type === category);
+
+        return products.sort((a, b) => {
+            let valueA, valueB;
+
+            // 处理名称列的特殊情况
+            if (field === 'displayName') {
+                // 按显示名称排序，支持中文拼音
+                valueA = a.displayName || a.name || a.code || '';
+                valueB = b.displayName || b.name || b.code || '';
+
+                // 使用 localeCompare 支持中文拼音排序
+                return direction === 'asc'
+                    ? valueA.localeCompare(valueB, 'zh-CN')
+                    : valueB.localeCompare(valueA, 'zh-CN');
+            } else if (field === 'code') {
+                // 按代码排序
+                valueA = a.code || '';
+                valueB = b.code || '';
+
+                let result = 0;
+                if (valueA < valueB) result = -1;
+                if (valueA > valueB) result = 1;
+                return direction === 'desc' ? -result : result;
+            } else {
+                // 其他数据列
+                valueA = a.lastData ? a.lastData[field] : (field === 'price' ? 0 : -Infinity);
+                valueB = b.lastData ? b.lastData[field] : (field === 'price' ? 0 : -Infinity);
+
+                // 处理空值
+                if (valueA == null) valueA = direction === 'asc' ? -Infinity : Infinity;
+                if (valueB == null) valueB = direction === 'asc' ? -Infinity : Infinity;
+
+                let result = 0;
+                if (valueA < valueB) result = -1;
+                if (valueA > valueB) result = 1;
+
+                return direction === 'desc' ? -result : result;
+            }
+        });
+    }
+
+    // 新增：处理表头点击排序
+    handleSort(category, field) {
+        const currentState = this.sortState[category];
+
+        // 循环：null -> asc -> desc -> null
+        let newDirection = null;
+        if (!currentState.field || currentState.field !== field) {
+            // 点击新列，默认升序
+            newDirection = 'asc';
+        } else {
+            // 点击同一列，循环切换
+            if (!currentState.direction) {
+                newDirection = 'asc';
+            } else if (currentState.direction === 'asc') {
+                newDirection = 'desc';
+            } else {
+                newDirection = null;
+            }
+        }
+
+        // 更新排序状态
+        this.sortState[category] = {
+            field: newDirection ? field : null,
+            direction: newDirection
+        };
+
+        this.saveSortState();
+        this.renderProducts();
+
+        console.log(`🔄 ${category} 排序: ${field} ${newDirection || '无排序'}`);
     }
 
     renderProducts() {
@@ -333,26 +460,67 @@ class DynamicFinancialWidget {
         return categories;
     }
 
+    // 修改 renderCategory 方法以支持排序
     renderCategory(type, title, products) {
+        const sortState = this.sortState[type];
+        const sortedProducts = this.sortProducts(type, sortState.field, sortState.direction);
+
         return `
             <div class="category-section">
                 <h3 class="category-title">${title}</h3>
                 <div class="table-container">
                     <div class="products-table">
                         <div class="table-header">
-                            <div class="table-header-cell">产品名称</div>
+                            <div class="table-header-cell name-header-cell">
+                                <div class="name-header-content">
+                                    <span class="name-sortable sortable" data-category="${type}" data-field="displayName">
+                                        产品名称${this.getSortIndicator(type, 'displayName')}
+                                    </span>
+                                    <span class="code-sortable sortable" data-category="${type}" data-field="code">
+                                        代码${this.getSortIndicator(type, 'code')}
+                                    </span>
+                                </div>
+                            </div>
                             <div class="table-header-cell">状态</div>
-                            <div class="table-header-cell">最新价</div>
-                            <div class="table-header-cell">涨跌额</div>
-                            <div class="table-header-cell">涨跌幅</div>
+                            <div class="table-header-cell sortable" data-category="${type}" data-field="price">
+                                最新价${this.getSortIndicator(type, 'price')}
+                            </div>
+                            <div class="table-header-cell sortable" data-category="${type}" data-field="change">
+                                涨跌额${this.getSortIndicator(type, 'change')}
+                            </div>
+                            <div class="table-header-cell sortable" data-category="${type}" data-field="changePercent">
+                                涨跌幅${this.getSortIndicator(type, 'changePercent')}
+                            </div>
                             <div class="table-header-cell">更新时间</div>
                             <div class="table-header-cell">操作</div>
                         </div>
-                        ${products.map((product, index) => this.renderProductRow(product, index)).join('')}
+                        ${sortedProducts.map((product, index) => {
+                            const globalIndex = this.products.findIndex(p => p === product);
+                            return this.renderProductRow(product, globalIndex);
+                        }).join('')}
                     </div>
                 </div>
             </div>
         `;
+    }
+
+    // 新增：获取排序指示器
+    getSortIndicator(category, field) {
+        const sortState = this.sortState[category];
+
+        if (sortState.field !== field) {
+            return '<span class="sort-indicator default">▲</span>';
+        }
+
+        if (sortState.direction === 'asc') {
+            return '<span class="sort-indicator asc">▲</span>';
+        }
+
+        if (sortState.direction === 'desc') {
+            return '<span class="sort-indicator desc">▼</span>';
+        }
+
+        return '<span class="sort-indicator default">▲</span>';
     }
 
     // 在 renderProductRow 方法中修改时间显示部分
