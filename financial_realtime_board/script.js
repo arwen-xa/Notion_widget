@@ -269,10 +269,23 @@ class DynamicFinancialWidget {
         }
     }
 
+    // 修改 loadFromStorage 方法，确保加载时处理置顶时间
     loadFromStorage() {
         try {
             const saved = localStorage.getItem('financial-widget-products');
             const products = saved ? JSON.parse(saved) : [];
+
+            // 确保每个产品都有 pinned 和 pinTime 属性
+            products.forEach(product => {
+                if (product.pinned === undefined) {
+                    product.pinned = false;
+                }
+                if (product.pinned && product.pinTime === undefined) {
+                    // 对于已置顶但没有时间戳的产品，设置一个默认时间戳
+                    product.pinTime = Date.now();
+                }
+            });
+
             console.log('📦 从存储加载产品:', products.length);
             return products;
         } catch (error) {
@@ -318,16 +331,54 @@ class DynamicFinancialWidget {
         }
     }
 
-    // 新增：排序方法
-    sortProducts(category, field, direction) {
-        if (!direction) {
-            // 不排序，恢复原始顺序（按添加顺序）
-            return [...this.products.filter(p => p.type === category)];
+    // 新增：切换置顶状态
+    togglePin(index) {
+        const product = this.products[index];
+        if (!product) return;
+
+        if (!product.pinned) {
+            // 置顶操作：找到当前置顶产品的最新时间戳
+            const pinnedProducts = this.products.filter(p => p.pinned);
+            const maxPinTime = pinnedProducts.length > 0
+                ? Math.max(...pinnedProducts.map(p => p.pinTime || 0))
+                : 0;
+
+            // 设置置顶时间戳（比当前最大的时间戳稍大）
+            product.pinTime = maxPinTime + 1;
+            product.pinned = true;
+        } else {
+            // 取消置顶
+            product.pinned = false;
+            product.pinTime = null;
         }
 
+        this.saveToStorage();
+        this.renderProducts();
+
+        console.log(`📌 ${product.displayName || product.name} ${product.pinned ? '置顶' : '取消置顶'}`);
+    }
+
+    // 修改排序方法以支持置顶
+    sortProducts(category, field, direction) {
         const products = this.products.filter(p => p.type === category);
 
-        return products.sort((a, b) => {
+        // 分离置顶产品和普通产品
+        const pinnedProducts = products.filter(p => p.pinned);
+        const normalProducts = products.filter(p => !p.pinned);
+
+        if (!direction) {
+            // 不排序，恢复原始顺序
+            // 置顶产品按置顶时间倒序（新置顶在前），普通产品按添加顺序
+            const sortedPinnedProducts = pinnedProducts.sort((a, b) => {
+                const timeA = a.pinTime || 0;
+                const timeB = b.pinTime || 0;
+                return timeB - timeA; // 倒序：新置顶在前
+            });
+            return [...sortedPinnedProducts, ...normalProducts];
+        }
+
+        // 对普通产品进行排序
+        const sortedNormalProducts = normalProducts.sort((a, b) => {
             let valueA, valueB;
 
             // 处理名称列的特殊情况
@@ -337,7 +388,7 @@ class DynamicFinancialWidget {
                 valueB = b.displayName || b.name || b.code || '';
 
                 // 使用 localeCompare 支持中文拼音排序
-                return direction === 'asc'
+                return direction === 'asc' 
                     ? valueA.localeCompare(valueB, 'zh-CN')
                     : valueB.localeCompare(valueA, 'zh-CN');
             } else if (field === 'code') {
@@ -365,6 +416,16 @@ class DynamicFinancialWidget {
                 return direction === 'desc' ? -result : result;
             }
         });
+
+        // 置顶产品按置顶时间倒序在前，排序后的普通产品在后
+        const sortedPinnedProducts = pinnedProducts.sort((a, b) => {
+            const timeA = a.pinTime || 0;
+            const timeB = b.pinTime || 0;
+            return timeB - timeA; // 倒序：新置顶在前
+        });
+
+        // 置顶产品在前，排序后的普通产品在后
+        return [...pinnedProducts, ...sortedNormalProducts];
     }
 
     // 新增：处理表头点击排序
@@ -616,6 +677,11 @@ class DynamicFinancialWidget {
         return `
             <div class="product-row ${rowClass}">
                 <div class="product-info-cell">
+                    <button class="pin-btn ${product.pinned ? 'pinned' : ''}" 
+                            onclick="financialWidget.togglePin(${globalIndex})"
+                            title="${product.pinned ? '取消置顶' : '置顶'}">
+                        📌
+                    </button>
                     <div class="product-name">${product.displayName || product.name}</div>
                     <div class="product-code">${product.code}</div>
                 </div>
@@ -888,7 +954,9 @@ class DynamicFinancialWidget {
                 lastData: null,
                 lastError: null,
                 lastUpdate: null,
-                dataTime: null
+                dataTime: null,
+                pinned: false, // 新增：默认未置顶
+                pinTime: null  // 新增：置顶时间
             };
             console.log('DEBUG: displayName: ', newProduct.displayName);
             console.log('DEBUG: name: ', newProduct.name);
