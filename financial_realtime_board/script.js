@@ -1098,7 +1098,7 @@ class DynamicFinancialWidget {
                             }
 
                             resolve({
-                                price: parseFloat(estimateValue.toFixed(4)),
+                                price: parseFloat(netValue.toFixed(4)),
                                 change: parseFloat(estimateChange.toFixed(4)),
                                 changePercent: parseFloat(estimateChangePercent.toFixed(2)),
                                 productName: data.name || `基金${code}`,
