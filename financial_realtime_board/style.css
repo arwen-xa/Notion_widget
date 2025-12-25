@@ -281,7 +281,7 @@ body {
 .product-info-cell {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
     min-width: 0;
     padding: 0 1px;
 }
@@ -981,6 +981,50 @@ body {
     background: #fff7e6;
 }
 
+/* === 新增：手动排序按钮样式 === */
+.sort-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-left: 2px;
+    flex-shrink: 0;
+}
+
+.sort-up-btn,
+.sort-down-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 8px;
+    transition: all 0.2s ease;
+    color: #ccc;
+    width: 12px;
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1px;
+    line-height: 1;
+}
+
+.sort-up-btn:hover,
+.sort-down-btn:hover {
+    background: #f5f5f5;
+    color: #1890ff;
+}
+
+.sort-up-btn:disabled,
+.sort-down-btn:disabled {
+    color: #eee;
+    cursor: not-allowed;
+}
+
+.sort-up-btn:disabled:hover,
+.sort-down-btn:disabled:hover {
+    background: none;
+    color: #eee;
+}
 /* 产品名称 - 恢复原始样式 */
 .product-name {
     font-weight: 500;
@@ -1028,6 +1072,16 @@ body {
         max-width: 35px;
         font-size: 8px;
     }
+.sort-buttons {
+    margin-left: 1px;
+}
+
+.sort-up-btn,
+.sort-down-btn {
+    width: 10px;
+    height: 8px;
+    font-size: 7px;
+}
 }
 
 @media (max-width: 500px) {

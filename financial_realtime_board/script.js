@@ -311,6 +311,108 @@ class DynamicFinancialWidget {
         console.log(`📌 ${product.displayName || product.name} ${product.pinned ? '置顶' : '取消置顶'}`);
     }
 
+    // ========= 手动排序功能 ==========
+    // 移动产品位置（基于当前显示顺序）
+    moveProduct(globalIndex, direction) {
+        console.log(`🔄 尝试${direction === 'up' ? '上移' : '下移'}产品，全局索引: ${globalIndex}`);
+
+        // 获取当前产品
+        const product = this.products[globalIndex];
+        if (!product) {
+            console.error('无效的产品索引');
+            return false;
+        }
+
+        const category = product.type;
+        const sortState = this.sortState[category];
+
+        // 1. 获取当前分类下所有产品（按当前显示顺序）
+        let displayOrder = this.sortProducts(category, sortState.field, sortState.direction);
+
+        // 2. 在当前显示顺序中找到该产品的索引
+        const displayIndex = displayOrder.findIndex(p => p === product);
+        if (displayIndex === -1) {
+            console.error('在产品显示列表中找不到该产品');
+            return false;
+        }
+
+        // 3. 检查边界
+        if (direction === 'up' && displayIndex === 0) {
+            console.log('已在最顶部，无法上移');
+            return false;
+        }
+
+        if (direction === 'down' && displayIndex === displayOrder.length - 1) {
+            console.log('已在最底部，无法下移');
+            return false;
+        }
+
+        // 4. 确定要交换的产品
+        const targetDisplayIndex = direction === 'up' ? displayIndex - 1 : displayIndex + 1;
+        const targetProduct = displayOrder[targetDisplayIndex];
+
+        console.log(`移动前: ${product.displayName} (显示位置: ${displayIndex}) ↔ ${targetProduct.displayName} (显示位置: ${targetDisplayIndex})`);
+
+        // 5. 关键：基于当前显示顺序，重新构建全局数组顺序
+        // 首先，从全局数组中移除当前分类的所有产品
+        // const nonCategoryProducts = this.products.filter(p => p.type !== category);
+
+        // 6. 在当前分类的显示顺序中交换两个产品的位置
+        [displayOrder[displayIndex], displayOrder[targetDisplayIndex]] =
+            [displayOrder[targetDisplayIndex], displayOrder[displayIndex]];
+
+        // 7. 将交换后的分类产品与非分类产品合并，重建全局数组
+        // 需要保持非分类产品的相对位置不变
+        const newProducts = [];
+        let categoryIndex = 0;
+
+        // 按照原始全局数组的顺序，逐个重建
+        for (const p of this.products) {
+            if (p.type === category) {
+                // 如果是当前分类的产品，使用交换后的顺序
+                newProducts.push(displayOrder[categoryIndex]);
+                categoryIndex++;
+            } else {
+                // 如果不是当前分类的产品，保持原位置
+                newProducts.push(p);
+            }
+        }
+
+        // 8. 更新全局数组
+        this.products = newProducts;
+
+        // 9. 重置所有排序和置顶状态
+        this.resetAllSortAndPinStates();
+
+        // 10. 保存并重新渲染
+        this.saveToStorage();
+        this.renderProducts();
+
+        console.log(`📊 手动排序完成: ${product.displayName || product.name} ${direction === 'up' ? '上移' : '下移'}`);
+        return true;
+    }
+
+    // 重置所有排序和置顶状态
+    resetAllSortAndPinStates() {
+        // 重置所有产品的置顶状态
+        this.products.forEach(product => {
+            product.pinned = false;
+            product.pinTime = null;
+        });
+
+        // 重置排序状态
+        this.sortState = {
+            stock: { field: null, direction: null },
+            fund: { field: null, direction: null },
+            crypto: { field: null, direction: null }
+        };
+
+        // 保存排序状态
+        this.saveSortState();
+
+        console.log('🔄 已重置所有排序和置顶状态');
+    }
+
     // ========= 产品排序功能 ==========
     // 绑定排序事件
     bindSortEvents() {
@@ -1527,6 +1629,12 @@ class DynamicFinancialWidget {
             errorDisplay = `<div class="error-time">(${errorTime} 更新失败)</div>`;
         }
 
+        // 在 renderProductRow 方法内部，获取当前产品的显示位置信息
+        const category = product.type;
+        const sortState = this.sortState[category];
+        const sortedProducts = this.sortProducts(category, sortState.field, sortState.direction);
+        const displayIndex = sortedProducts.findIndex(p => p === product);
+
         return `
             <div class="product-row ${rowClass}">
                 <div class="product-info-cell">
@@ -1535,9 +1643,24 @@ class DynamicFinancialWidget {
                             title="${product.pinned ? '取消置顶' : '置顶'}">
                         📌
                     </button>
+                    <div class="sort-buttons">
+                        <button class="sort-up-btn"
+                                onclick="financialWidget.moveProduct(${globalIndex}, 'up')"
+                                title="上移"
+                                ${displayIndex === 0 ? 'disabled' : ''}>
+                            ▲
+                        </button>
+                        <button class="sort-down-btn" 
+                                onclick="financialWidget.moveProduct(${globalIndex}, 'down')"
+                                title="下移"
+                                ${displayIndex === sortedProducts.length - 1 ? 'disabled' : ''}>
+                            ▼
+                        </button>
+                    </div>
                     <div class="product-name">${product.displayName || product.name}</div>
                     <div class="product-code">${product.code}</div>
                 </div>
+                <!-- 其余列保持不变 -->
                 <div class="status-cell ${statusClass}">
                     ${statusDisplay}
                 </div>
@@ -1607,7 +1730,14 @@ class DynamicFinancialWidget {
 function quickAdd(productType, productCode, productName) {
     console.log('🌍 quickAdd全局函数被调用:', productType, productCode, productName);
     if (window.financialWidget) {
-        window.financialWidget.addProduct(productType, productCode, productName);
+        window.financialWidget.addProduct(productType, productCode, productName)
+            .then(() => {
+                // 添加成功后，确保渲染正确
+                window.financialWidget.renderProducts();
+            })
+            .catch(error => {
+                console.error('快速添加失败:', error);
+            });
     } else {
         console.error('❌ financialWidget未初始化');
     }
