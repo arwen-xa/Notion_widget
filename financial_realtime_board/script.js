@@ -1203,7 +1203,7 @@ class DynamicFinancialWidget {
 
                                 if (items.length >= 6) {
                                     const currentPrice = parseFloat(items[3]);
-                                    const prevClose = parseFloat(items[5]);
+                                    const prevClose = parseFloat(items[4]);
 
                                     if (!isNaN(currentPrice) && !isNaN(prevClose)) {
                                         const change = currentPrice - prevClose;
@@ -1241,8 +1241,8 @@ class DynamicFinancialWidget {
                                         // console.log('productname: items[1]:', items[1], 'code: ', `股票${code}`, '||: ', items[1] || `股票${code}`)
 
                                         resolve({
-                                            price: parseFloat(currentPrice.toFixed(2)),
-                                            change: parseFloat(change.toFixed(2)),
+                                            price: parseFloat(prevClose < 100 ? prevClose.toFixed(4) : prevClose.toFixed(2)),
+                                            change: parseFloat(prevClose < 100 ? change.toFixed(4) : change.toFixed(2)),
                                             changePercent: parseFloat(changePercent.toFixed(2)),
                                             productName: items[1] || `股票${code}`,
                                             dataTime: dataTime.getTime() // 保存数据对应的时间戳
@@ -1630,7 +1630,7 @@ class DynamicFinancialWidget {
                             </div>
                             <div class="table-header-cell">状态</div>
                             <div class="table-header-cell sortable" data-category="${type}" data-field="price">
-                                最新价${this.getSortIndicator(type, 'price')}
+                                昨收${this.getSortIndicator(type, 'price')}
                             </div>
                             <div class="table-header-cell sortable" data-category="${type}" data-field="change">
                                 涨跌额${this.getSortIndicator(type, 'change')}
