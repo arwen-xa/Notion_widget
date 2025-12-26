@@ -212,6 +212,44 @@ body {
     color: #1890ff;
 }
 
+/* === 新增：提取产品列表样式 === */
+.extract-products-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #eaeaea;
+}
+
+.extract-form {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px;
+    align-items: center;
+}
+
+#products-output {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    background: #fafafa;
+    color: #333;
+    cursor: text;
+    white-space: nowrap;
+    overflow-x: auto;
+    min-height: 32px;
+}
+
+#products-output:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
+
+#products-output::placeholder {
+    color: #999;
+    font-style: italic;
+}
+
 /* 表格容器 - 允许水平滚动 */
 .table-container {
     width: 100%;
@@ -940,6 +978,15 @@ body {
         flex-direction: column;
         align-items: flex-start;
         gap: 4px;
+    }
+    
+    .extract-form {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+    
+    #products-output {
+        font-size: 11px;
     }
 
     .table-header,

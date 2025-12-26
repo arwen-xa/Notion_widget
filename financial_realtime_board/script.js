@@ -217,6 +217,14 @@ class DynamicFinancialWidget {
         // 绑定排序事件
         this.bindSortEvents();
 
+        // 绑定提取产品列表按钮
+        const extractBtn = document.getElementById('extract-products-btn');
+        if (extractBtn) {
+            extractBtn.addEventListener('click', () => {
+                this.extractProductsList();
+            });
+        }
+
         console.log('✅ 事件监听器绑定完成');
     }
 
@@ -280,6 +288,130 @@ class DynamicFinancialWidget {
     collapsePanel() {
         if (this.isPanelExpanded) {
             this.togglePanel();
+        }
+    }
+
+    // ========= 提取产品列表功能 ==========
+    // 提取当前产品列表
+    extractProductsList() {
+        console.log('📋 提取当前产品列表');
+
+        if (this.products.length === 0) {
+            this.showExtractResult('暂无产品');
+            // alert('当前没有产品可提取');
+            return;
+        }
+
+        try {
+            // 按类型分类产品
+            const categorizedProducts = {
+                stock: [],
+                fund: [],
+                crypto: []
+            };
+
+            // 按产品类型分类，保持产品在全局数组中的原始顺序
+            this.products.forEach(product => {
+                if (categorizedProducts[product.type]) {
+                    categorizedProducts[product.type].push(product);
+                }
+            });
+
+            // 构建输出字符串
+            const outputParts = [];
+
+            // 按照股票、基金、加密货币的顺序输出
+            ['stock', 'fund', 'crypto'].forEach(type => {
+                const products = categorizedProducts[type];
+                if (products.length > 0) {
+                    products.forEach(product => {
+                        const displayName = product.displayName || product.name || '';
+                        // 确保显示名称没有逗号和分号
+                        const safeDisplayName = displayName.replace(/[,;]/g, '');
+                        outputParts.push(`${type}, ${product.code}, ${safeDisplayName}`);
+                    });
+                }
+            });
+
+            // 用分号连接所有产品
+            const outputText = outputParts.join('; ');
+
+            // 显示在文本框中
+            this.showExtractResult(outputText);
+
+            // 复制到剪贴板
+            this.copyToClipboard(outputText);
+
+            console.log('✅ 产品列表已提取:', outputText);
+
+        } catch (error) {
+            console.error('❌ 提取产品列表失败:', error);
+            this.showExtractResult('提取失败，请重试');
+        }
+    }
+
+    // 显示提取结果
+    showExtractResult(text) {
+        const outputElement = document.getElementById('products-output');
+        if (outputElement) {
+            outputElement.value = text;
+            // 自动选中文本以便复制
+            outputElement.select();
+            outputElement.setSelectionRange(0, text.length);
+        }
+    }
+
+    // 复制到剪贴板
+    copyToClipboard(text) {
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                console.log('📋 已复制到剪贴板');
+
+                // 显示成功提示（可选）
+                const extractBtn = document.getElementById('extract-products-btn');
+                if (extractBtn) {
+                    const originalText = extractBtn.textContent;
+                    extractBtn.textContent = '✓ 已复制';
+                    extractBtn.style.background = '#52c41a';
+
+                    // 2秒后恢复原状
+                    setTimeout(() => {
+                        extractBtn.textContent = originalText;
+                        extractBtn.style.background = '';
+                    }, 2000);
+                }
+            })
+            .catch(err => {
+                console.error('❌ 复制到剪贴板失败:', err);
+                // 降级方案：使用旧的execCommand方法
+                this.fallbackCopyToClipboard(text);
+            });
+    }
+
+    // 复制到剪贴板的降级方案
+    fallbackCopyToClipboard(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                console.log('📋 使用降级方案复制成功');
+            } else {
+                console.error('❌ 降级方案复制失败');
+                // alert('复制失败，请手动复制文本框中的内容');
+            }
+        } catch (err) {
+            console.error('❌ 降级方案复制出错:', err);
+            // alert('复制失败，请手动复制文本框中的内容');
+        } finally {
+            document.body.removeChild(textArea);
         }
     }
 
