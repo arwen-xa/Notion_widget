@@ -69,17 +69,24 @@
 
         <!-- 状态信息 -->
         <div class="status-bar">
-            <div class="status-info">
-                <span id="product-count">产品数量: 0</span>
-                <span class="divider">|</span>
-                <span id="last-update">最后更新: --</span>
-                <span class="divider">|</span>
-                <span class="update-frequency">更新频率: 股票/加密货币10分钟 | 基金30分钟</span>
-            </div>
-            <div class="button-module">
-                <button id="refresh-all-btn" class="secondary-btn">🔄 刷新全部</button>
-                <button id="delete-all-btn" class="secondary-btn">🗑️ 删除全部</button>
+            <!-- 左侧：文字信息 -->
+            <div class="status-left">
+                <div class="status-row">
+                    <span id="product-count">产品数量: 0</span>
+                    <span class="divider">|</span>
+                    <span id="last-update">最后更新: --</span>
                 </div>
+                <div class="update-frequency">更新频率: 股票/加密货币10分钟 | 基金30分钟</div>
+                </div>
+                <!-- 右侧：按钮 -->
+                <div class="status-right">
+                    <div class="button-row">
+                        <button id="refresh-all-btn" class="secondary-btn">🔄 刷新全部</button>
+                </div>
+                <div class="button-row">
+                    <button id="delete-all-btn" class="secondary-btn">🗑️ 删除全部</button>
+                </div>
+            </div>
         </div>
     </div>
 
