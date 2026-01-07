@@ -27,6 +27,7 @@ class DynamicFinancialWidget {
         this.renderProducts();
         this.startAutoUpdate();
         this.updateProductCount();
+        this.initTheme(); // 新增：初始化主题
         console.log('✅ 组件初始化完成，产品数量:', this.products.length);
 
         // 立即更新所有数据
@@ -226,6 +227,57 @@ class DynamicFinancialWidget {
         }
 
         console.log('✅ 事件监听器绑定完成');
+    }
+
+    // ========== 主题切换功能 ==========
+    initTheme() {
+        // 获取当前主题
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        this.updateThemeButton(currentTheme === 'dark');
+
+        // 绑定主题切换按钮事件
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        if (themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', () => {
+                this.toggleTheme();
+            });
+        }
+    }
+
+    // 切换主题
+    toggleTheme() {
+        const htmlElement = document.documentElement;
+        const isDarkMode = htmlElement.getAttribute('data-theme') === 'dark';
+
+        if (isDarkMode) {
+            // 切换到浅色模式
+            htmlElement.removeAttribute('data-theme');
+            localStorage.setItem('financial-widget-theme', 'light');
+            this.updateThemeButton(false);
+            console.log('🌞 切换到浅色模式');
+        } else {
+            // 切换到深色模式
+            htmlElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('financial-widget-theme', 'dark');
+            this.updateThemeButton(true);
+            console.log('🌙 切换到深色模式');
+        }
+    }
+
+    // 更新主题按钮显示
+    updateThemeButton(isDarkMode) {
+        const themeText = document.getElementById('theme-text');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+
+        if (themeText && themeToggleBtn) {
+            if (isDarkMode) {
+                themeText.textContent = '深色模式';
+                themeToggleBtn.title = '切换到浅色模式';
+            } else {
+                themeText.textContent = '浅色模式';
+                themeToggleBtn.title = '切换到深色模式';
+            }
+        }
     }
 
     // ========== 添加面板展开/折叠功能 ==========

@@ -5,8 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>动态金融数据看板</title>
     <link rel="stylesheet" href="style.css">
+    <!-- 在 head 标签内添加，用于存储主题设置 -->
+    <script>
+        // 页面加载前检查主题设置
+        (function () {
+            const savedTheme = localStorage.getItem('financial-widget-theme');
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
 </head>
 <body>
+    <!-- 主题切换按钮 -->
+    <div class="theme-toggle-container">
+        <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="切换深色/浅色模式">
+            <span id="theme-text">浅色模式</span>
+        </button>
+    </div>
     <div class="financial-widget">
         <div class="header">
             <h1>📈 金融数据看板</h1>
